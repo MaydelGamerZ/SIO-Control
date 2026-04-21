@@ -711,11 +711,17 @@ function HistoryPanel({ accent = 'blue', count, disabled, label, onAdd, onDelete
               setAdding(false)
             }}
             submitLabel="Agregar conteo"
+            title="Nuevo conteo"
           />
         )}
         {entries.length === 0 && <div className="rounded-lg bg-white/5 p-4 text-sm font-bold text-slate-400">Sin registros capturados.</div>}
         {entries.map((entry) => (
-          <div className="rounded-lg border border-white/10 bg-slate-900 p-3" key={entry.id}>
+          <div
+            className={`rounded-lg border p-3 ${
+              editingEntryId === entry.id ? 'border-blue-300/30 bg-blue-500/5 shadow-lg shadow-blue-950/10' : 'border-white/10 bg-slate-900'
+            }`}
+            key={entry.id}
+          >
             {editingEntryId === entry.id ? (
               <EntryInlineForm
                 disabled={disabled}
@@ -726,6 +732,7 @@ function HistoryPanel({ accent = 'blue', count, disabled, label, onAdd, onDelete
                   setEditingEntryId('')
                 }}
                 submitLabel="Guardar cambios"
+                title="Editando registro"
               />
             ) : (
               <div className="grid gap-3 xl:grid-cols-[82px_minmax(0,1fr)_72px_88px] xl:items-center">
@@ -794,11 +801,13 @@ function HistoryPanel({ accent = 'blue', count, disabled, label, onAdd, onDelete
   )
 }
 
-function EntryInlineForm({ disabled, initialValues = {}, onCancel, onSubmit, submitLabel }) {
+function EntryInlineForm({ disabled, initialValues = {}, onCancel, onSubmit, submitLabel, title }) {
   const [comment, setComment] = useState(initialValues.comment || '')
   const [localError, setLocalError] = useState('')
   const [observation, setObservation] = useState(initialValues.observation || initialValues.condition || 'Buen estado')
   const [quantity, setQuantity] = useState(initialValues.quantity ? String(initialValues.quantity) : '')
+  const editing = Boolean(initialValues.id)
+  const actionLabel = submitLabel.includes('Agregar') ? 'Agregar' : 'Guardar'
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -818,12 +827,22 @@ function EntryInlineForm({ disabled, initialValues = {}, onCancel, onSubmit, sub
   }
 
   return (
-    <form className="rounded-lg border border-blue-300/20 bg-blue-500/10 p-3" onSubmit={handleSubmit}>
-      <div className="grid gap-2 xl:grid-cols-[78px_120px_minmax(0,1fr)_76px_76px] xl:items-end">
+    <form className="rounded-xl border border-blue-300/25 bg-slate-950/80 p-4 shadow-inner shadow-black/20" onSubmit={handleSubmit}>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
+        <div className="min-w-0">
+          <div className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">{title || (editing ? 'Editando registro' : 'Nuevo conteo')}</div>
+          <p className="mt-1 text-sm font-bold text-slate-500">
+            {editing ? 'Modifica el movimiento seleccionado sin perder el contexto del producto.' : 'Captura un nuevo movimiento para este usuario.'}
+          </p>
+        </div>
+        {editing && <Badge tone="blue">Modo edicion</Badge>}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
         <label className="min-w-0">
           <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Cantidad</span>
           <input
-            className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/80 px-3 font-black text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400"
+            className="min-h-12 w-full rounded-lg border border-white/10 bg-slate-900 px-3 font-black text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400"
             inputMode="decimal"
             min="0"
             onChange={(event) => setQuantity(event.target.value)}
@@ -835,41 +854,39 @@ function EntryInlineForm({ disabled, initialValues = {}, onCancel, onSubmit, sub
         <label className="min-w-0">
           <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Condicion</span>
           <select
-            className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/80 px-3 font-bold text-slate-50 outline-none focus:border-blue-400"
+            className="min-h-12 w-full rounded-lg border border-white/10 bg-slate-900 px-3 font-bold text-slate-50 outline-none focus:border-blue-400"
             onChange={(event) => setObservation(event.target.value)}
             value={observation}
           >
             {observationOptions.map((option) => <option key={option}>{option}</option>)}
           </select>
         </label>
-        <label className="min-w-0">
+        <label className="min-w-0 md:col-span-2">
           <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Observacion</span>
-          <input
-            className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/80 px-3 font-semibold text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400"
+          <textarea
+            className="min-h-20 w-full resize-none rounded-lg border border-white/10 bg-slate-900 px-3 py-3 font-semibold text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400"
             onChange={(event) => setComment(event.target.value)}
             placeholder="Sin observacion"
+            rows={2}
             value={comment}
           />
         </label>
-        <button
-          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg bg-blue-600 px-2 text-xs font-black text-white shadow-sm transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+      </div>
+
+      {localError && <div className="mt-3 rounded-md border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-sm font-bold text-rose-100">{localError}</div>}
+
+      <div className="mt-4 flex flex-col-reverse gap-2 border-t border-white/10 pt-4 sm:flex-row sm:justify-end">
+        <Button className="w-full sm:w-auto" disabled={disabled} onClick={onCancel} tone="light"><X size={17} />Cancelar</Button>
+        <Button
+          className="w-full sm:w-auto"
           disabled={disabled}
+          tone="blue"
           type="submit"
         >
-          <CheckCircle2 size={15} />
-          {submitLabel.includes('Agregar') ? 'Agregar' : 'Guardar'}
-        </button>
-        <button
-          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/10 px-2 text-xs font-black text-slate-100 shadow-sm transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={disabled}
-          onClick={onCancel}
-          type="button"
-        >
-          <X size={15} />
-          Cancelar
-        </button>
+          <CheckCircle2 size={17} />
+          {actionLabel}
+        </Button>
       </div>
-      {localError && <div className="mt-2 rounded-md border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-sm font-bold text-rose-100">{localError}</div>}
     </form>
   )
 }
