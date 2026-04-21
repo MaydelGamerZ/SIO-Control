@@ -275,8 +275,7 @@ export function buildInventoryFromLines(lines, fileName = '') {
     const product = parseProductLine(line)
     if (product) {
       if (!currentCategory) {
-        currentCategory = createCategory({ displayName: 'Sin categoria', sourceName: 'Sin categoria' }, categories.length)
-        categories.push(currentCategory)
+        continue
       }
 
       currentCategory.products.push({
