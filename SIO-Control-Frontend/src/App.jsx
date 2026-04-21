@@ -1,17 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  Boxes,
-  ChevronRight,
-  ClipboardList,
-  History,
   Home,
   LoaderCircle,
   LogOut,
-  Menu,
-  PackagePlus,
-  Plus,
   ShieldCheck,
-  X,
 } from 'lucide-react'
 import {
   createUserWithEmailAndPassword,
@@ -25,12 +17,7 @@ import './App.css'
 
 const defaultSections = [
   { id: 'inicio', label: 'Inicio', short: 'IN', icon: Home },
-  { id: 'inventario-diario', label: 'Inventario Diario', short: 'ID', icon: ClipboardList },
-  { id: 'historial', label: 'Historial de Inventarios', short: 'HI', icon: History },
-  { id: 'productos', label: 'Productos / Categorias', short: 'PC', icon: Boxes },
 ]
-
-const storageKey = 'sio-menu-sections'
 
 function getInitials(user) {
   const name = user?.displayName || user?.email || 'Usuario'
@@ -59,10 +46,10 @@ function Login({ onEmailLogin, onGoogleLogin, loading, error }) {
           Sistema activo
         </div>
         <div>
-          <p className="eyebrow">SIO Control</p>
+          <p className="eyebrow">SIO-Control</p>
           <h1>Inventario seguro para tu operacion</h1>
           <p className="login-copy">
-            Inicia sesion con tu correo o Google para entrar al panel principal y administrar las secciones del menu.
+            Inicia sesion con tu correo o Google para entrar al panel principal.
           </p>
         </div>
 
@@ -124,35 +111,24 @@ function Login({ onEmailLogin, onGoogleLogin, loading, error }) {
   )
 }
 
-function Sidebar({ activeSection, collapsed, onAddSection, onCollapse, onSelect, sections, user }) {
-  const [newSection, setNewSection] = useState('')
-
-  function handleSubmit(event) {
-    event.preventDefault()
-    onAddSection(newSection)
-    setNewSection('')
-  }
-
+function Sidebar({ activeSection, onSelect, sections, user }) {
   return (
-    <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`}>
+    <aside className="sidebar">
       <div className="sidebar-top">
         <div className="status-pill compact">
           <ShieldCheck size={16} />
-          <span>{collapsed ? 'INV' : 'Sistema activo'}</span>
+          <span>Sistema activo</span>
         </div>
-        <button className="collapse-button" onClick={onCollapse} type="button" aria-label="Alternar menu">
-          {collapsed ? <ChevronRight size={22} /> : <X size={22} />}
-        </button>
       </div>
 
       <header className="brand-block">
-        <h1>{collapsed ? 'INV' : 'INVENTARIO'}</h1>
-        {!collapsed && <p>Panel principal</p>}
+        <h1>SIO-Control</h1>
+        <p>Panel principal</p>
       </header>
 
       <nav className="nav-list" aria-label="Menu principal">
         {sections.map((section) => {
-          const Icon = section.icon || PackagePlus
+          const Icon = section.icon
           const isActive = activeSection === section.id
 
           return (
@@ -164,44 +140,24 @@ function Sidebar({ activeSection, collapsed, onAddSection, onCollapse, onSelect,
               type="button"
             >
               <Icon size={24} />
-              {!collapsed && <span>{section.label}</span>}
-              {!collapsed && <ChevronRight className="nav-arrow" size={18} />}
+              <span>{section.label}</span>
             </button>
           )
         })}
       </nav>
 
-      {!collapsed && (
-        <form className="add-section" onSubmit={handleSubmit}>
-          <label htmlFor="new-section">Agregar seccion</label>
-          <div>
-            <input
-              id="new-section"
-              onChange={(event) => setNewSection(event.target.value)}
-              placeholder="Ej. Proveedores"
-              value={newSection}
-            />
-            <button type="submit" aria-label="Agregar seccion">
-              <Plus size={18} />
-            </button>
-          </div>
-        </form>
-      )}
-
       <footer className="user-card">
         <div className="avatar">{user?.photoURL ? <img src={user.photoURL} alt="" /> : getInitials(user)}</div>
-        {!collapsed && (
-          <div>
-            <span>Usuario</span>
-            <strong>{user?.displayName || 'Usuario'}</strong>
-            <p>{user?.email}</p>
-          </div>
-        )}
+        <div>
+          <span>Usuario</span>
+          <strong>{user?.displayName || 'Usuario'}</strong>
+          <p>{user?.email}</p>
+        </div>
       </footer>
 
       <button className="logout-button" onClick={() => signOut(auth)} type="button">
         <LogOut size={22} />
-        {!collapsed && <span>Cerrar sesion</span>}
+        <span>Cerrar sesion</span>
       </button>
     </aside>
   )
@@ -268,11 +224,7 @@ function App() {
   const [authError, setAuthError] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
-  const [collapsed, setCollapsed] = useState(false)
-  const [sections, setSections] = useState(() => {
-    const storedSections = JSON.parse(localStorage.getItem(storageKey) || '[]')
-    return storedSections.length > 0 ? [...defaultSections, ...storedSections] : defaultSections
-  })
+  const [sections] = useState(defaultSections)
   const [user, setUser] = useState(null)
 
   useEffect(() => {
@@ -283,11 +235,6 @@ function App() {
 
     return unsubscribe
   }, [])
-
-  const customSections = useMemo(
-    () => sections.filter((section) => !defaultSections.some((defaultSection) => defaultSection.id === section.id)),
-    [sections],
-  )
 
   async function handleLogin() {
     setAuthError('')
@@ -332,23 +279,6 @@ function App() {
     }
   }
 
-  function handleAddSection(label) {
-    const cleanLabel = label.trim()
-    if (!cleanLabel) return
-
-    const newSection = {
-      id: `${cleanLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`,
-      label: cleanLabel,
-      short: cleanLabel.slice(0, 2).toUpperCase(),
-      icon: PackagePlus,
-    }
-
-    const nextCustomSections = [...customSections, newSection]
-    localStorage.setItem(storageKey, JSON.stringify(nextCustomSections))
-    setSections([...defaultSections, ...nextCustomSections])
-    setActiveSection(newSection.id)
-  }
-
   if (checkingSession) {
     return (
       <main className="loading-page">
@@ -363,14 +293,8 @@ function App() {
 
   return (
     <div className="app-shell">
-      <button className="mobile-menu-button" onClick={() => setCollapsed((value) => !value)} type="button">
-        <Menu size={22} />
-      </button>
       <Sidebar
         activeSection={activeSection}
-        collapsed={collapsed}
-        onAddSection={handleAddSection}
-        onCollapse={() => setCollapsed((value) => !value)}
         onSelect={setActiveSection}
         sections={sections}
         user={user}
