@@ -235,6 +235,19 @@
   padding: 18px 16px 12px;
 }
 
+.collapse-button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #282a32;
+  border-radius: 8px;
+  background: #1a1b21;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .brand-block {
   padding: 0 16px 24px;
   border-bottom: 1px solid #191a20;
@@ -283,6 +296,40 @@
 .nav-item.is-active {
   background: #101116;
   color: #fff;
+}
+
+.sidebar.is-collapsed .status-pill {
+  display: none;
+}
+
+.sidebar.is-collapsed .sidebar-top,
+.sidebar.is-collapsed .brand-block {
+  justify-content: center;
+  padding-inline: 12px;
+}
+
+.sidebar.is-collapsed .brand-block h1 {
+  font-size: 22px;
+  text-align: center;
+}
+
+.sidebar.is-collapsed .nav-list {
+  padding-inline: 18px;
+}
+
+.sidebar.is-collapsed .nav-item {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding: 0;
+}
+
+.sidebar.is-collapsed .user-card {
+  justify-content: center;
+  padding: 14px;
+}
+
+.sidebar.is-collapsed .logout-button {
+  min-height: 62px;
 }
 
 .user-card {
@@ -498,45 +545,34 @@
   }
 
   .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: min(92vw, 364px);
+    overflow: hidden auto;
+    box-shadow: 18px 0 40px rgba(0, 0, 0, 0.32);
+  }
+
+  .sidebar.is-collapsed {
     width: 92px;
-    overflow: hidden;
+    box-shadow: none;
   }
 
   .brand-block h1 {
-    font-size: 18px;
-    text-align: center;
     overflow-wrap: anywhere;
-  }
-
-  .brand-block p,
-  .status-pill.compact span,
-  .nav-item span,
-  .user-card div,
-  .logout-button span {
-    display: none;
-  }
-
-  .sidebar-top,
-  .brand-block {
-    justify-content: center;
-    padding-inline: 12px;
   }
 
   .nav-list {
     gap: 12px;
-    padding-inline: 18px;
   }
 
   .nav-item {
     font-size: 17px;
-    grid-template-columns: 1fr;
-    justify-items: center;
-    padding: 0;
   }
 
   .dashboard {
     min-height: 100svh;
-    padding: 24px 16px;
+    padding: 24px 16px 24px 108px;
   }
 
   .summary-grid {

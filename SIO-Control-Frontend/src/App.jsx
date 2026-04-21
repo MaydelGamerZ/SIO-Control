@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
+  ChevronRight,
   Home,
   LoaderCircle,
   LogOut,
   ShieldCheck,
+  X,
 } from 'lucide-react'
 import {
   createUserWithEmailAndPassword,
@@ -111,19 +113,22 @@ function Login({ onEmailLogin, onGoogleLogin, loading, error }) {
   )
 }
 
-function Sidebar({ activeSection, onSelect, sections, user }) {
+function Sidebar({ activeSection, collapsed, onSelect, onToggle, sections, user }) {
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`}>
       <div className="sidebar-top">
         <div className="status-pill compact">
           <ShieldCheck size={16} />
-          <span>Sistema activo</span>
+          <span>{collapsed ? 'SIO' : 'Sistema activo'}</span>
         </div>
+        <button className="collapse-button" onClick={onToggle} type="button" aria-label="Desplegar menu">
+          {collapsed ? <ChevronRight size={22} /> : <X size={22} />}
+        </button>
       </div>
 
       <header className="brand-block">
-        <h1>SIO-Control</h1>
-        <p>Panel principal</p>
+        <h1>{collapsed ? 'SIO' : 'SIO-Control'}</h1>
+        {!collapsed && <p>Panel principal</p>}
       </header>
 
       <nav className="nav-list" aria-label="Menu principal">
@@ -140,7 +145,7 @@ function Sidebar({ activeSection, onSelect, sections, user }) {
               type="button"
             >
               <Icon size={24} />
-              <span>{section.label}</span>
+              {!collapsed && <span>{section.label}</span>}
             </button>
           )
         })}
@@ -148,16 +153,18 @@ function Sidebar({ activeSection, onSelect, sections, user }) {
 
       <footer className="user-card">
         <div className="avatar">{user?.photoURL ? <img src={user.photoURL} alt="" /> : getInitials(user)}</div>
-        <div>
-          <span>Usuario</span>
-          <strong>{user?.displayName || 'Usuario'}</strong>
-          <p>{user?.email}</p>
-        </div>
+        {!collapsed && (
+          <div>
+            <span>Usuario</span>
+            <strong>{user?.displayName || 'Usuario'}</strong>
+            <p>{user?.email}</p>
+          </div>
+        )}
       </footer>
 
       <button className="logout-button" onClick={() => signOut(auth)} type="button">
         <LogOut size={22} />
-        <span>Cerrar sesion</span>
+        {!collapsed && <span>Cerrar sesion</span>}
       </button>
     </aside>
   )
@@ -224,6 +231,7 @@ function App() {
   const [authError, setAuthError] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
+  const [collapsed, setCollapsed] = useState(false)
   const [sections] = useState(defaultSections)
   const [user, setUser] = useState(null)
 
@@ -295,7 +303,9 @@ function App() {
     <div className="app-shell">
       <Sidebar
         activeSection={activeSection}
+        collapsed={collapsed}
         onSelect={setActiveSection}
+        onToggle={() => setCollapsed((value) => !value)}
         sections={sections}
         user={user}
       />
