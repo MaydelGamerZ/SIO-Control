@@ -1,4 +1,4 @@
-import { createId, formatDateKey, slugify } from '../utils/inventory.js'
+import { createId, formatDateKey, slugify } from './inventoryCore.js'
 
 const nameColumnMax = 155
 const stockColumnMin = 150
@@ -100,7 +100,7 @@ function lineTextFromItems(items) {
 }
 
 export function groupTextItemsIntoLines(items, pageNumber = 1) {
-  const positioned = items
+  const positioned = (items || [])
     .map((item) => ({
       str: item.str,
       x: Number(item.transform?.[4] || 0),
@@ -294,6 +294,10 @@ export function buildInventoryFromLines(lines, fileName = '') {
 }
 
 export function buildInventoryFromTextPages(pages, fileName = '') {
-  const lines = pages.flatMap((page, pageIndex) => groupTextItemsIntoLines(page.items || [], page.pageNumber || pageIndex + 1))
+  const lines = []
+  for (let pageIndex = 0; pageIndex < (pages || []).length; pageIndex += 1) {
+    const page = pages[pageIndex]
+    lines.push(...groupTextItemsIntoLines(page.items || [], page.pageNumber || pageIndex + 1))
+  }
   return buildInventoryFromLines(lines, fileName)
 }

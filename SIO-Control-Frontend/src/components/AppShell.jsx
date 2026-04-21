@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   History,
+  Home,
   LogOut,
   Menu,
   PackageCheck,
@@ -22,6 +23,10 @@ const navItems = [
   { to: '/inventario/cargar', label: 'Cargar inventario', icon: Upload },
   { to: '/inventario/conteo', label: 'Conteo en proceso', icon: ClipboardCheck },
   { to: '/inventario/historial', label: 'Historial de inventarios', icon: History },
+]
+
+const mainItems = [
+  { to: '/inicio', label: 'Inicio', icon: Home },
 ]
 
 function getInitials(user) {
@@ -110,26 +115,49 @@ export default function AppShell() {
           </div>
 
           <nav className="flex-1 space-y-2 px-3">
+            {mainItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <NavLink
+                  className={({ isActive }) =>
+                    `group relative flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-bold transition ${
+                      isActive ? 'bg-blue-500 text-white shadow-lg shadow-blue-950/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                    } ${sidebarCollapsed ? 'justify-center' : ''}`
+                  }
+                  key={item.to}
+                  onClick={() => setDrawerOpen(false)}
+                  title={sidebarCollapsed ? item.label : undefined}
+                  to={item.to}
+                >
+                  <Icon size={20} />
+                  {!sidebarCollapsed && <span>{item.label}</span>}
+                  {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-2 hidden rounded-md bg-slate-800 px-2 py-1 text-xs font-black text-white shadow-xl ring-1 ring-white/10 group-hover:block">{item.label}</span>}
+                </NavLink>
+              )
+            })}
+
             <button
-              className="flex min-h-14 w-full items-center justify-between rounded-lg bg-white/10 px-3 text-left text-sm font-black text-white ring-1 ring-white/10"
+              className={`group relative flex min-h-14 w-full items-center justify-between rounded-lg bg-white/10 px-3 text-left text-sm font-black text-white ring-1 ring-white/10 ${sidebarCollapsed ? 'justify-center' : ''}`}
               onClick={() => setInventoryOpen((value) => !value)}
               type="button"
+              title={sidebarCollapsed ? 'Inventario' : undefined}
             >
               <span className="flex items-center gap-3">
                 <PackageCheck size={22} />
                 {!sidebarCollapsed && <span>Inventario</span>}
               </span>
               {!sidebarCollapsed && (inventoryOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
+              {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-2 hidden rounded-md bg-slate-800 px-2 py-1 text-xs font-black text-white shadow-xl ring-1 ring-white/10 group-hover:block">Inventario</span>}
             </button>
 
-            {inventoryOpen && (
+            {(inventoryOpen || sidebarCollapsed) && (
               <div className="space-y-1">
                 {navItems.map((item) => {
                   const Icon = item.icon
                   return (
                     <NavLink
                       className={({ isActive }) =>
-                        `flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-bold transition ${
+                        `group relative flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-bold transition ${
                           isActive || (item.to.includes('historial') && isInventoryDetail)
                             ? 'bg-blue-500 text-white shadow-lg shadow-blue-950/20'
                             : 'text-slate-300 hover:bg-white/10 hover:text-white'
@@ -137,10 +165,12 @@ export default function AppShell() {
                       }
                       key={item.to}
                       onClick={() => setDrawerOpen(false)}
+                      title={sidebarCollapsed ? item.label : undefined}
                       to={item.to}
                     >
                       <Icon size={20} />
                       {!sidebarCollapsed && <span>{item.label}</span>}
+                      {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-2 hidden w-max rounded-md bg-slate-800 px-2 py-1 text-xs font-black text-white shadow-xl ring-1 ring-white/10 group-hover:block">{item.label}</span>}
                     </NavLink>
                   )
                 })}
@@ -162,12 +192,14 @@ export default function AppShell() {
               )}
             </div>
             <button
-              className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 font-black text-white hover:bg-rose-700 ${sidebarCollapsed ? 'px-2' : ''}`}
+              className={`group relative flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 font-black text-white hover:bg-rose-700 ${sidebarCollapsed ? 'px-2' : ''}`}
               onClick={handleLogout}
               type="button"
+              title={sidebarCollapsed ? 'Cerrar sesion' : undefined}
             >
               <LogOut size={20} />
               {!sidebarCollapsed && <span>Cerrar sesion</span>}
+              {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-2 hidden w-max rounded-md bg-slate-800 px-2 py-1 text-xs font-black text-white shadow-xl ring-1 ring-white/10 group-hover:block">Cerrar sesion</span>}
             </button>
           </div>
         </div>

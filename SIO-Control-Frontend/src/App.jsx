@@ -3,6 +3,7 @@ import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './contexts/AuthContext'
 import CountPage from './pages/CountPage'
+import HomePage from './pages/HomePage'
 import HistoryPage from './pages/HistoryPage'
 import InventoryDetailPage from './pages/InventoryDetailPage'
 import LoginPage from './pages/LoginPage'
@@ -17,7 +18,8 @@ const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/', element: <Navigate replace to="/inventario/resumen" /> },
+          { path: '/', element: <Navigate replace to="/inicio" /> },
+          { path: '/inicio', element: <HomePage /> },
           { path: '/inventario/resumen', element: <SummaryPage /> },
           { path: '/inventario/cargar', element: <UploadInventoryPage /> },
           { path: '/inventario/conteo', element: <CountPage /> },
@@ -28,7 +30,7 @@ const router = createBrowserRouter([
       },
     ],
   },
-  { path: '*', element: <Navigate replace to="/inventario/resumen" /> },
+  { path: '*', element: <Navigate replace to="/inicio" /> },
 ])
 
 export default function App() {

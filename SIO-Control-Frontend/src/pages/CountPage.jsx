@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, Search, Trash2 } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { Badge, Button, EmptyState, ErrorState, LoadingState, Metric } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -12,7 +12,7 @@ import {
   updateCountEntry,
   updateInventoryStatus,
 } from '../services/inventoryService'
-import { formatDateKey, formatNumber, formatTime, getCategoryProgress, getProductStatus, inventoryStatuses, observationOptions } from '../utils/inventory'
+import { filterProductRows, formatDateKey, formatNumber, formatTime, getCategoryProgress, getProductStatus, inventoryStatuses, observationOptions, productFilters } from '../utils/inventory'
 
 async function resolveInventory(id) {
   return id ? getInventory(id) : (await getTodayInventory(formatDateKey())) || (await getLatestInventory())
@@ -22,9 +22,11 @@ export default function CountPage() {
   const [activeCategoryId, setActiveCategoryId] = useState('')
   const [compactView, setCompactView] = useState(false)
   const [error, setError] = useState('')
+  const [filterId, setFilterId] = useState('all')
   const [inventory, setInventory] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [toolsOpen, setToolsOpen] = useState(false)
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -70,25 +72,13 @@ export default function CountPage() {
   const normalizedSearch = search.trim().toLowerCase()
   const visibleProductRows = useMemo(() => {
     if (!inventory) return []
-
-    if (normalizedSearch) {
-      return categories
-        .flatMap((category) =>
-          (category.products || []).map((product) => ({
-            categoryId: category.id,
-            categoryName: category.name,
-            product,
-          })),
-        )
-        .filter((row) => `${row.product.name} ${row.categoryName}`.toLowerCase().includes(normalizedSearch))
-    }
-
-    return (activeCategory?.products || []).map((product) => ({
-      categoryId: activeCategory.id,
-      categoryName: activeCategory.name,
-      product,
-    }))
-  }, [activeCategory, categories, inventory, normalizedSearch])
+    return filterProductRows({
+      categories,
+      categoryId: activeCategory?.id || '',
+      filterId,
+      search,
+    })
+  }, [activeCategory, categories, filterId, inventory, search])
 
   async function handleAdd(categoryId, productId, values) {
     if (!inventory?.id) return
@@ -172,8 +162,8 @@ export default function CountPage() {
     <>
       <ErrorState message={error} />
 
-      <section className="mb-4 rounded-xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl shadow-black/20 lg:sticky lg:top-[calc(5rem+env(safe-area-inset-top))] lg:z-20 lg:mb-5">
-        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(640px,0.9fr)] 2xl:items-center">
+      <section className="mb-4 rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl shadow-black/20 lg:sticky lg:top-[calc(5rem+env(safe-area-inset-top))] lg:z-20 lg:mb-5 sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Conteo en proceso</p>
@@ -186,24 +176,15 @@ export default function CountPage() {
               <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.cedis}</span>
               <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">Avance general {inventory.progress}%</span>
               <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.countedProducts} de {inventory.totalProducts} productos</span>
+              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.totalMovements || 0} movimientos</span>
             </div>
           </div>
 
-          <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(260px,1fr)_auto] xl:grid-cols-[minmax(300px,1fr)_auto_auto]">
-            <label className="relative min-w-0">
-              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <input
-                className="min-h-14 w-full rounded-lg border border-white/10 bg-slate-950/70 pl-12 pr-4 font-bold text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950"
-                inputMode="search"
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar producto"
-                value={search}
-              />
-            </label>
-            <Button className="w-full whitespace-nowrap" onClick={() => setCompactView((value) => !value)} tone="light">
-              {compactView ? 'Vista detallada' : 'Vista compacta'}
+          <div className="grid min-w-0 gap-2 sm:grid-cols-[auto_1fr] xl:min-w-[460px]">
+            <Button className="w-full sm:hidden" onClick={() => setToolsOpen(true)} tone="light">
+              <SlidersHorizontal size={18} /> Herramientas
             </Button>
-            <div className="grid grid-cols-2 gap-2 md:col-span-2 xl:col-span-1">
+            <div className="grid grid-cols-2 gap-2 sm:col-span-2 xl:col-span-1">
               <Button className="w-full" onClick={() => handleSave(inventoryStatuses.inProgress)} tone="blue">Guardar</Button>
               <Button className="w-full" onClick={() => handleSave(inventoryStatuses.saved)} tone="dark">Guardar y salir</Button>
             </div>
@@ -211,38 +192,42 @@ export default function CountPage() {
         </div>
       </section>
 
-      <section className="mb-4 rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 xl:hidden">
-        <label className="grid gap-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-          Categoria activa
-          <select
-            className="min-h-13 rounded-lg border border-white/10 bg-slate-950 px-4 text-base font-black normal-case tracking-normal text-slate-50 outline-none focus:border-blue-400"
-            onChange={(event) => setActiveCategoryId(event.target.value)}
-            value={activeCategory?.id || ''}
-          >
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.order + 1}. {category.name} ({category.products.length})
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Button disabled={activeIndex <= 0} onClick={() => goCategory(-1)} tone="light">
-            <ChevronLeft size={18} /> Anterior
-          </Button>
-          <Button disabled={activeIndex >= categories.length - 1} onClick={() => goCategory(1)} tone="light">
-            Siguiente <ChevronRight size={18} />
+      <ToolsPanel
+        activeCategory={activeCategory}
+        categories={categories}
+        compactView={compactView}
+        filterId={filterId}
+        onCategoryChange={setActiveCategoryId}
+        onClose={() => setToolsOpen(false)}
+        onCompactViewChange={setCompactView}
+        onFilterChange={setFilterId}
+        onSearchChange={setSearch}
+        open={toolsOpen}
+        search={search}
+      />
+
+      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:block">
+        <div className="grid gap-3 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1fr)_auto] xl:items-start">
+          <SearchBox search={search} setSearch={setSearch} />
+          <FilterChips filterId={filterId} setFilterId={setFilterId} />
+          <Button className="whitespace-nowrap" onClick={() => setCompactView((value) => !value)} tone="light">
+            {compactView ? 'Vista detallada' : 'Vista compacta'}
           </Button>
         </div>
-        <div className="touch-scroll -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
+      </section>
+
+      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:block xl:hidden">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="font-black text-slate-50">Categorias</h3>
+          <span className="text-sm font-bold text-slate-400">{activeIndex + 1} de {categories.length}</span>
+        </div>
+        <div className="touch-scroll flex gap-2 overflow-x-auto pb-1">
           {categories.map((category) => {
             const progress = getCategoryProgress(category)
             return (
               <button
-                className={`min-h-11 flex-none rounded-full border px-4 text-sm font-black transition ${
-                  category.id === activeCategory?.id
-                    ? 'border-blue-300/40 bg-blue-500/20 text-blue-100'
-                    : 'border-white/10 bg-white/5 text-slate-300'
+                className={`min-h-12 flex-none rounded-full border px-4 text-sm font-black transition ${
+                  category.id === activeCategory?.id ? 'border-blue-300/40 bg-blue-500/20 text-blue-100' : 'border-white/10 bg-white/5 text-slate-300'
                 }`}
                 key={category.id}
                 onClick={() => setActiveCategoryId(category.id)}
@@ -337,6 +322,103 @@ export default function CountPage() {
         </section>
       </div>
     </>
+  )
+}
+
+function SearchBox({ search, setSearch }) {
+  return (
+    <label className="relative min-w-0">
+      <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+      <input
+        className="min-h-14 w-full rounded-lg border border-white/10 bg-slate-950/70 pl-12 pr-4 font-bold text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950"
+        inputMode="search"
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Buscar producto"
+        value={search}
+      />
+    </label>
+  )
+}
+
+function FilterChips({ filterId, setFilterId }) {
+  return (
+    <div className="touch-scroll flex gap-2 overflow-x-auto pb-1 xl:flex-wrap xl:overflow-visible">
+      {productFilters.map((filter) => (
+        <button
+          className={`min-h-11 flex-none rounded-full border px-4 text-sm font-black transition ${
+            filterId === filter.id
+              ? 'border-blue-300/40 bg-blue-500/20 text-blue-100'
+              : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+          }`}
+          key={filter.id}
+          onClick={() => setFilterId(filter.id)}
+          type="button"
+        >
+          {filter.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ToolsPanel({
+  activeCategory,
+  categories,
+  compactView,
+  filterId,
+  onCategoryChange,
+  onClose,
+  onCompactViewChange,
+  onFilterChange,
+  onSearchChange,
+  open,
+  search,
+}) {
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 sm:hidden">
+      <button aria-label="Cerrar herramientas" className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" onClick={onClose} type="button" />
+      <section className="safe-x safe-bottom absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-3xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black touch-scroll">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Herramientas</p>
+            <h3 className="mt-1 text-2xl font-black text-slate-50">Conteo</h3>
+          </div>
+          <button className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 text-slate-100" onClick={onClose} type="button" aria-label="Cerrar">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="grid gap-4">
+          <SearchBox search={search} setSearch={onSearchChange} />
+
+          <label className="grid gap-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            Categoria
+            <select
+              className="min-h-13 rounded-lg border border-white/10 bg-slate-900 px-4 text-base font-black normal-case tracking-normal text-slate-50 outline-none focus:border-blue-400"
+              onChange={(event) => onCategoryChange(event.target.value)}
+              value={activeCategory?.id || ''}
+            >
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.order + 1}. {category.name} ({category.products.length})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Filtros</div>
+            <FilterChips filterId={filterId} setFilterId={onFilterChange} />
+          </div>
+
+          <Button className="w-full" onClick={() => onCompactViewChange((value) => !value)} tone="light">
+            {compactView ? 'Cambiar a vista detallada' : 'Cambiar a vista compacta'}
+          </Button>
+        </div>
+      </section>
+    </div>
   )
 }
 

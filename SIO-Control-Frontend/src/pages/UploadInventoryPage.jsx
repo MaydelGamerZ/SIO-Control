@@ -97,7 +97,7 @@ export default function UploadInventoryPage() {
                 ['CEDIS', parsedInventory.cedis],
                 ['Total general PDF', formatNumber(parsedInventory.totalGeneralPdf)],
                 ['Categorias', parsedInventory.categories.length],
-                ['Productos', parsedInventory.categories.flatMap((category) => category.products).length],
+                ['Productos', parsedInventory.categories.reduce((total, category) => total + category.products.length, 0)],
               ].map(([label, value]) => (
                 <div className="flex items-center justify-between gap-4 rounded-lg bg-white/5 px-4 py-3 ring-1 ring-white/10" key={label}>
                   <span className="font-bold text-slate-400">{label}</span>

@@ -1,0 +1,7 @@
+{
+  "name": "sio-control-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Business rules, PDF parsing helpers, and inventory normalization for SIO-Control."
+}

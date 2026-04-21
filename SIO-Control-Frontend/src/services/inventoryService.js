@@ -208,6 +208,7 @@ export async function updateInventoryDocument(inventoryId, inventory, user) {
     status: normalized.status || inventoryStatuses.inProgress,
     totalCategories: normalized.totalCategories,
     totalCounted: normalized.totalCounted,
+    totalMovements: normalized.totalMovements,
     totalProducts: normalized.totalProducts,
     totalStock: normalized.totalStock,
     updatedAt: serverTimestamp(),
