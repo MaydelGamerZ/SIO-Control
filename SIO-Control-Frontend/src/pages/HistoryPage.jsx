@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArchiveRestore, Edit3, Eye, Filter } from 'lucide-react'
-import { Button, EmptyState, ErrorState, LoadingState, Metric, PageTitle } from '../components/ui'
+import { ArchiveRestore, Edit3, Eye, Filter, GitCompare } from 'lucide-react'
+import { Badge, Button, EmptyState, ErrorState, LoadingState, Metric, PageTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import { listInventories, updateInventoryStatus } from '../services/inventoryService'
 import { formatDisplayDate, formatNumber, inventoryStatuses } from '../utils/inventory'
@@ -96,6 +96,18 @@ export default function HistoryPage() {
                 <div>
                   <div className="text-xl font-black text-slate-50">{formatDisplayDate(inventory.dateKey)}</div>
                   <div className="mt-1 text-sm font-bold text-slate-400">{inventory.semana || 'Sin semana'} - {inventory.cedis}</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(inventory.participants || []).length === 0 ? (
+                      <Badge tone="amber">Sin conteos individuales</Badge>
+                    ) : (
+                      inventory.participants.map((participant, index) => (
+                        <Badge key={`${participant.userId}-${index}`} tone={participant.status === inventoryStatuses.saved ? 'green' : 'blue'}>
+                          Conteo {index + 1}: {participant.userName}
+                        </Badge>
+                      ))
+                    )}
+                    {inventory.finalCount && <Badge tone="green">Conteo final validado</Badge>}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
                   <Metric label="Categorias" value={inventory.totalCategories} />
@@ -111,6 +123,7 @@ export default function HistoryPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={() => navigate(`/inventario/${inventory.id}`)} tone="light"><Eye className="mr-1 inline" size={16} />Ver detalle</Button>
                   <Button onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="light"><Edit3 className="mr-1 inline" size={16} />Editar</Button>
+                  <Button onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light"><GitCompare className="mr-1 inline" size={16} />Comparar</Button>
                   <Button onClick={() => reopenInventory(inventory.id)} tone="light"><ArchiveRestore className="mr-1 inline" size={16} />Reabrir</Button>
                   <Button onClick={() => window.print()} tone="light">Exportar resumen</Button>
                 </div>

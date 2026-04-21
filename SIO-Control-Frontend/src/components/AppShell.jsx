@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
+  GitCompare,
   Upload,
   X,
 } from 'lucide-react'
@@ -22,6 +23,7 @@ const navItems = [
   { to: '/inventario/resumen', label: 'Resumen del dia', icon: BarChart3 },
   { to: '/inventario/cargar', label: 'Cargar inventario', icon: Upload },
   { to: '/inventario/conteo', label: 'Conteo en proceso', icon: ClipboardCheck },
+  { to: '/inventario/comparar', label: 'Comparar conteos', icon: GitCompare },
   { to: '/inventario/historial', label: 'Historial de inventarios', icon: History },
 ]
 
@@ -46,7 +48,7 @@ export default function AppShell() {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const isInventoryDetail = /^\/inventario\/(?!resumen$|cargar$|conteo$|historial$)[^/]+(?:\/editar)?$/.test(location.pathname)
+  const isInventoryDetail = /^\/inventario\/(?!resumen$|cargar$|conteo$|comparar$|historial$)[^/]+(?:\/editar|\/comparar)?$/.test(location.pathname)
 
   async function handleLogout() {
     await logout()

@@ -1,6 +1,10 @@
 export const inventoryStatuses = {
   draft: 'borrador',
   inProgress: 'en_proceso',
+  count1Complete: 'conteo_1_completo',
+  count2Complete: 'conteo_2_completo',
+  pendingComparison: 'pendiente_comparacion',
+  validated: 'validado',
   saved: 'guardado',
   closed: 'cerrado',
   reopened: 'reabierto',
@@ -9,11 +13,12 @@ export const inventoryStatuses = {
 export const observationOptions = ['Buen estado', 'Danado', 'Mojado', 'Caducado', 'Otro']
 
 export const productFilters = [
+  { id: 'global', label: 'Ver todo' },
   { id: 'all', label: 'Todos' },
   { id: 'pending', label: 'Pendientes' },
   { id: 'counted', label: 'Con conteo' },
-  { id: 'missing', label: 'Faltantes' },
-  { id: 'surplus', label: 'Sobrantes' },
+  { id: 'missing', label: 'Con faltante' },
+  { id: 'surplus', label: 'Con sobrante' },
   { id: 'observations', label: 'Observaciones' },
   { id: 'damaged', label: 'Danados' },
   { id: 'wet', label: 'Mojados' },
@@ -80,8 +85,8 @@ export function flattenProducts(categories = []) {
   return rows
 }
 
-export function normalizeInventory(rawInventory = {}) {
-  const categories = (rawInventory.categories || []).map((category, categoryIndex) => {
+export function normalizeCategories(rawCategories = []) {
+  return (rawCategories || []).map((category, categoryIndex) => {
     const products = (category.products || []).map((product, productIndex) => {
       const countEntries = product.countEntries || []
       const totalCounted = countEntries.reduce((total, entry) => total + Number(entry.quantity || 0), 0)
@@ -107,7 +112,9 @@ export function normalizeInventory(rawInventory = {}) {
       products,
     }
   })
+}
 
+export function summarizeCategories(categories = []) {
   const products = flattenProducts(categories).map((row) => row.product)
   const totalStock = products.reduce((total, product) => total + Number(product.stock || 0), 0)
   const totalCounted = products.reduce((total, product) => total + Number(product.totalCounted || 0), 0)
@@ -119,17 +126,62 @@ export function normalizeInventory(rawInventory = {}) {
   ).length
 
   return {
-    ...rawInventory,
-    categories,
+    countedProducts,
+    difference: totalCounted - totalStock,
+    progress: totalProducts === 0 ? 0 : Math.round((countedProducts / totalProducts) * 100),
+    reviewedCategories,
     totalCategories: categories.length,
+    totalCounted,
+    totalMovements,
     totalProducts,
     totalStock,
-    totalCounted,
-    difference: totalCounted - totalStock,
-    countedProducts,
-    totalMovements,
-    reviewedCategories,
-    progress: totalProducts === 0 ? 0 : Math.round((countedProducts / totalProducts) * 100),
+  }
+}
+
+export function normalizeUserCount(rawCount = {}, fallbackCategories = [], index = 0) {
+  const categories = normalizeCategories(rawCount.categories?.length ? rawCount.categories : fallbackCategories)
+  return {
+    ...rawCount,
+    id: rawCount.id || rawCount.userId || createId('uc'),
+    order: Number.isFinite(rawCount.order) ? rawCount.order : index,
+    status: rawCount.status || inventoryStatuses.inProgress,
+    userEmail: rawCount.userEmail || '',
+    userId: rawCount.userId || '',
+    userName: rawCount.userName || `Usuario ${index + 1}`,
+    categories,
+    ...summarizeCategories(categories),
+  }
+}
+
+export function normalizeInventory(rawInventory = {}) {
+  const categories = normalizeCategories(rawInventory.categories || [])
+  const userCounts = (rawInventory.userCounts || []).map((count, countIndex) => normalizeUserCount(count, categories, countIndex))
+  const finalCount = rawInventory.finalCount
+    ? {
+        ...rawInventory.finalCount,
+        categories: normalizeCategories(rawInventory.finalCount.categories || []),
+        ...summarizeCategories(normalizeCategories(rawInventory.finalCount.categories || [])),
+      }
+    : null
+  const summaryCategories = rawInventory.useUserCountSummary || rawInventory.activeUserCount
+    ? categories
+    : finalCount?.categories || userCounts[0]?.categories || categories
+  const summary = summarizeCategories(summaryCategories)
+
+  return {
+    ...rawInventory,
+    categories,
+    finalCount,
+    participants: userCounts.map((count) => ({
+      completedAt: count.completedAt || '',
+      status: count.status,
+      userEmail: count.userEmail,
+      userId: count.userId,
+      userName: count.userName,
+    })),
+    userCountCount: userCounts.length,
+    userCounts,
+    ...summary,
   }
 }
 
@@ -152,6 +204,7 @@ export function productMatchesFilter(product, filterId) {
   const hasObservation = entries.some((entry) => entry.observation && entry.observation !== 'Buen estado')
   const hasObservationNamed = (name) => entries.some((entry) => entry.observation === name)
 
+  if (filterId === 'global') return true
   if (filterId === 'pending') return entries.length === 0
   if (filterId === 'counted') return entries.length > 0
   if (filterId === 'missing') return entries.length > 0 && Number(product.difference || 0) < 0
@@ -165,7 +218,8 @@ export function productMatchesFilter(product, filterId) {
 
 export function filterProductRows({ categories = [], categoryId = '', filterId = 'all', search = '' }) {
   const text = search.trim().toLowerCase()
-  const sourceRows = categoryId && !text
+  const shouldShowEveryCategory = Boolean(text) || filterId === 'global'
+  const sourceRows = categoryId && !shouldShowEveryCategory
     ? flattenProducts(categories.filter((category) => category.id === categoryId))
     : flattenProducts(categories)
 

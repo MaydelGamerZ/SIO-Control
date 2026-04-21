@@ -11,6 +11,7 @@ export {
   getUserName,
   inventoryStatuses,
   normalizeInventory,
+  normalizeUserCount,
   observationOptions,
   productFilters,
   productMatchesFilter,

@@ -18,6 +18,7 @@ import {
   getUserName,
   inventoryStatuses,
   normalizeInventory,
+  normalizeUserCount,
 } from '../utils/inventory'
 
 const inventoryCollection = collection(db, 'inventory')
@@ -50,6 +51,42 @@ function prepareCategories(categories) {
   }))
 }
 
+function cloneCategoriesForUserCount(categories) {
+  return prepareCategories(categories).map((category) => ({
+    ...category,
+    products: category.products.map((product) => ({
+      ...product,
+      countEntries: [],
+      difference: -Number(product.stock || 0),
+      totalCounted: 0,
+    })),
+  }))
+}
+
+function getUserKey(user) {
+  return user?.uid || user?.email || 'anonymous'
+}
+
+function createUserCount(user, categories, order = 0) {
+  const now = new Date().toISOString()
+  const userSnapshot = makeUserSnapshot(user)
+  return normalizeUserCount({
+    id: createId('uc'),
+    userEmail: userSnapshot.email,
+    userId: userSnapshot.uid,
+    userName: userSnapshot.name,
+    order,
+    status: inventoryStatuses.inProgress,
+    createdAt: now,
+    updatedAt: now,
+    categories: cloneCategoriesForUserCount(categories),
+  })
+}
+
+function getCountUserKey(count) {
+  return count.userId || count.userEmail || count.id
+}
+
 function recalcInventory(inventory) {
   return normalizeInventory(inventory)
 }
@@ -79,6 +116,59 @@ function updateProductInInventory(inventory, categoryId, productId, updater) {
   return recalcInventory({ ...inventory, categories })
 }
 
+function updateProductInCategories(categories, categoryId, productId, updater) {
+  return updateProductInInventory({ categories }, categoryId, productId, updater).categories
+}
+
+function summarizeUserCount(count) {
+  return normalizeUserCount(count)
+}
+
+function getInventoryStatusFromCounts(userCounts, fallbackStatus = inventoryStatuses.inProgress) {
+  const completedCounts = (userCounts || []).filter((count) =>
+    [inventoryStatuses.saved, 'completo', inventoryStatuses.count1Complete, inventoryStatuses.count2Complete].includes(count.status),
+  ).length
+
+  if (fallbackStatus === inventoryStatuses.validated || fallbackStatus === inventoryStatuses.closed) return fallbackStatus
+  if (completedCounts >= 2) return inventoryStatuses.pendingComparison
+  if (completedCounts === 1) return inventoryStatuses.count1Complete
+  return inventoryStatuses.inProgress
+}
+
+async function getRawInventoryDocument(inventoryId) {
+  const snapshot = await getDoc(doc(db, 'inventory', inventoryId))
+  if (!snapshot.exists()) throw new Error('Inventario no encontrado')
+  return { id: snapshot.id, ...snapshot.data() }
+}
+
+async function getInventoryDataWithUserCount(inventoryId, user) {
+  const data = await getRawInventoryDocument(inventoryId)
+  const userCounts = Array.isArray(data.userCounts) ? data.userCounts.map((count, index) => normalizeUserCount(count, data.categories || [], index)) : []
+  const userKey = getUserKey(user)
+  let userIndex = userCounts.findIndex((count) => getCountUserKey(count) === userKey)
+
+  if (userIndex < 0) {
+    userCounts.push(createUserCount(user, data.categories || [], userCounts.length))
+    userIndex = userCounts.length - 1
+    await updateDoc(doc(db, 'inventory', inventoryId), {
+      status: getInventoryStatusFromCounts(userCounts, data.status),
+      updatedAt: serverTimestamp(),
+      updatedBy: makeUserSnapshot(user),
+      userCounts,
+    })
+  }
+
+  return {
+    data: {
+      ...data,
+      userCounts,
+    },
+    userCount: userCounts[userIndex],
+    userCounts,
+    userIndex,
+  }
+}
+
 export async function createInventoryFromParsed(parsedInventory, user) {
   const now = new Date()
   const dateKey = parsedInventory.dateKey || formatDateKey(now)
@@ -100,6 +190,8 @@ export async function createInventoryFromParsed(parsedInventory, user) {
     createdBy: userSnapshot,
     updatedAt: serverTimestamp(),
     updatedBy: userSnapshot,
+    userCounts: [],
+    verifiedProducts: {},
   })
 
   return docRef.id
@@ -109,6 +201,16 @@ export async function getInventory(id) {
   const snapshot = await getDoc(doc(db, 'inventory', id))
   if (!snapshot.exists()) return null
   return normalizeInventory({ id: snapshot.id, ...snapshot.data() })
+}
+
+export async function getInventoryForUser(id, user) {
+  const { data, userCount } = await getInventoryDataWithUserCount(id, user)
+  return normalizeInventory({
+    ...data,
+    activeUserCount: userCount,
+    categories: userCount.categories,
+    useUserCountSummary: true,
+  })
 }
 
 export async function getTodayInventory(dateKey = formatDateKey()) {
@@ -131,8 +233,7 @@ export async function listInventories() {
 }
 
 export async function addCountEntry(inventoryId, categoryId, productId, entry, user) {
-  const inventory = await getInventory(inventoryId)
-  if (!inventory) throw new Error('Inventario no encontrado')
+  const { data, userCounts, userCount, userIndex } = await getInventoryDataWithUserCount(inventoryId, user)
 
   const now = new Date().toISOString()
   const userSnapshot = makeUserSnapshot(user)
@@ -147,20 +248,30 @@ export async function addCountEntry(inventoryId, categoryId, productId, entry, u
     updatedAt: now,
   }
 
-  const updatedInventory = updateProductInInventory(inventory, categoryId, productId, (product) => ({
+  const categories = updateProductInCategories(userCount.categories, categoryId, productId, (product) => ({
     ...product,
     countEntries: [...(product.countEntries || []), countEntry],
   }))
+  userCounts[userIndex] = summarizeUserCount({
+    ...userCount,
+    categories,
+    status: inventoryStatuses.inProgress,
+    updatedAt: now,
+  })
 
-  await updateInventoryDocument(inventoryId, updatedInventory, user)
+  await updateDoc(doc(db, 'inventory', inventoryId), {
+    status: getInventoryStatusFromCounts(userCounts, data.status),
+    updatedAt: serverTimestamp(),
+    updatedBy: userSnapshot,
+    userCounts,
+  })
   return countEntry.id
 }
 
 export async function updateCountEntry(inventoryId, categoryId, productId, entryId, entryPatch, user) {
-  const inventory = await getInventory(inventoryId)
-  if (!inventory) throw new Error('Inventario no encontrado')
+  const { data, userCounts, userCount, userIndex } = await getInventoryDataWithUserCount(inventoryId, user)
 
-  const updatedInventory = updateProductInInventory(inventory, categoryId, productId, (product) => ({
+  const categories = updateProductInCategories(userCount.categories, categoryId, productId, (product) => ({
     ...product,
     countEntries: (product.countEntries || []).map((entry) =>
       entry.id === entryId
@@ -173,27 +284,186 @@ export async function updateCountEntry(inventoryId, categoryId, productId, entry
         : entry,
     ),
   }))
+  userCounts[userIndex] = summarizeUserCount({
+    ...userCount,
+    categories,
+    updatedAt: new Date().toISOString(),
+  })
 
-  await updateInventoryDocument(inventoryId, updatedInventory, user)
+  await updateDoc(doc(db, 'inventory', inventoryId), {
+    status: getInventoryStatusFromCounts(userCounts, data.status),
+    updatedAt: serverTimestamp(),
+    updatedBy: makeUserSnapshot(user),
+    userCounts,
+  })
 }
 
 export async function deleteCountEntry(inventoryId, categoryId, productId, entryId, user) {
-  const inventory = await getInventory(inventoryId)
-  if (!inventory) throw new Error('Inventario no encontrado')
+  const { data, userCounts, userCount, userIndex } = await getInventoryDataWithUserCount(inventoryId, user)
 
-  const updatedInventory = updateProductInInventory(inventory, categoryId, productId, (product) => ({
+  const categories = updateProductInCategories(userCount.categories, categoryId, productId, (product) => ({
     ...product,
     countEntries: (product.countEntries || []).filter((entry) => entry.id !== entryId),
   }))
+  userCounts[userIndex] = summarizeUserCount({
+    ...userCount,
+    categories,
+    updatedAt: new Date().toISOString(),
+  })
 
-  await updateInventoryDocument(inventoryId, updatedInventory, user)
+  await updateDoc(doc(db, 'inventory', inventoryId), {
+    status: getInventoryStatusFromCounts(userCounts, data.status),
+    updatedAt: serverTimestamp(),
+    updatedBy: makeUserSnapshot(user),
+    userCounts,
+  })
 }
 
 export async function updateInventoryStatus(inventoryId, status, user) {
+  if (status === inventoryStatuses.saved || status === inventoryStatuses.inProgress) {
+    const { data, userCounts, userCount, userIndex } = await getInventoryDataWithUserCount(inventoryId, user)
+    const now = new Date().toISOString()
+    userCounts[userIndex] = summarizeUserCount({
+      ...userCount,
+      completedAt: status === inventoryStatuses.saved ? now : userCount.completedAt || '',
+      status,
+      updatedAt: now,
+    })
+
+    await updateDoc(doc(db, 'inventory', inventoryId), {
+      status: getInventoryStatusFromCounts(userCounts, data.status),
+      updatedAt: serverTimestamp(),
+      updatedBy: makeUserSnapshot(user),
+      userCounts,
+    })
+    return
+  }
+
   await updateDoc(doc(db, 'inventory', inventoryId), {
     status,
     updatedAt: serverTimestamp(),
     updatedBy: makeUserSnapshot(user),
+  })
+}
+
+export async function setUserProductTotal(inventoryId, userCountId, categoryId, productId, quantity, user) {
+  const data = await getRawInventoryDocument(inventoryId)
+  const userCounts = (data.userCounts || []).map((count, index) => normalizeUserCount(count, data.categories || [], index))
+  const userIndex = userCounts.findIndex((count) => count.id === userCountId || count.userId === userCountId)
+  if (userIndex < 0) throw new Error('Conteo de usuario no encontrado')
+
+  const now = new Date().toISOString()
+  const userSnapshot = makeUserSnapshot(user)
+  const categories = updateProductInCategories(userCounts[userIndex].categories, categoryId, productId, (product) => ({
+    ...product,
+    countEntries: Number(quantity || 0) > 0
+      ? [{
+          id: createId('entry'),
+          quantity: Number(quantity || 0),
+          observation: 'Ajuste comparacion',
+          comment: 'Correccion directa en comparacion',
+          userId: userSnapshot.uid,
+          userName: userSnapshot.name,
+          createdAt: now,
+          updatedAt: now,
+        }]
+      : [],
+  }))
+
+  userCounts[userIndex] = summarizeUserCount({
+    ...userCounts[userIndex],
+    categories,
+    updatedAt: now,
+  })
+
+  await updateDoc(doc(db, 'inventory', inventoryId), {
+    status: getInventoryStatusFromCounts(userCounts, data.status),
+    updatedAt: serverTimestamp(),
+    updatedBy: userSnapshot,
+    userCounts,
+  })
+}
+
+export async function verifyComparisonProduct(inventoryId, productKey, user) {
+  const data = await getRawInventoryDocument(inventoryId)
+  await updateDoc(doc(db, 'inventory', inventoryId), {
+    updatedAt: serverTimestamp(),
+    updatedBy: makeUserSnapshot(user),
+    verifiedProducts: {
+      ...(data.verifiedProducts || {}),
+      [productKey]: true,
+    },
+  })
+}
+
+export async function generateFinalCount(inventoryId, user, countAId = '', countBId = '') {
+  const data = await getRawInventoryDocument(inventoryId)
+  const normalized = normalizeInventory(data)
+  const firstCount = normalized.userCounts.find((count) => count.id === countAId) || normalized.userCounts[0]
+  const secondCount = normalized.userCounts.find((count) => count.id === countBId) || normalized.userCounts[1]
+  if (!firstCount || !secondCount) throw new Error('Se necesitan al menos dos conteos para generar el conteo final.')
+  if (firstCount.id === secondCount.id) throw new Error('Selecciona dos conteos de usuarios diferentes.')
+
+  const now = new Date().toISOString()
+  const userSnapshot = makeUserSnapshot(user)
+  const secondRows = new Map()
+  for (const category of secondCount.categories) {
+    for (const product of category.products || []) {
+      secondRows.set(`${category.id}:${product.id}`, product)
+    }
+  }
+
+  const unresolvedRows = []
+  for (const category of firstCount.categories) {
+    for (const product of category.products || []) {
+      const productKey = `${category.id}:${product.id}`
+      const pair = secondRows.get(productKey)
+      if (Number(product.totalCounted || 0) !== Number(pair?.totalCounted || 0) && !data.verifiedProducts?.[productKey]) {
+        unresolvedRows.push(product.name)
+      }
+    }
+  }
+  if (unresolvedRows.length > 0) {
+    throw new Error(`Hay ${unresolvedRows.length} producto(s) con diferencias sin verificar antes de generar el conteo final.`)
+  }
+
+  const finalCategories = firstCount.categories.map((category) => ({
+    ...category,
+    products: (category.products || []).map((product) => {
+      const pair = secondRows.get(`${category.id}:${product.id}`)
+      const finalQuantity = product.totalCounted === pair?.totalCounted ? product.totalCounted : product.totalCounted
+      return {
+        ...product,
+        countEntries: Number(finalQuantity || 0) > 0
+          ? [{
+              id: createId('entry'),
+              quantity: Number(finalQuantity || 0),
+              observation: 'Conteo validado',
+              comment: 'Resultado final de comparacion multiusuario',
+              userId: userSnapshot.uid,
+              userName: userSnapshot.name,
+              createdAt: now,
+              updatedAt: now,
+            }]
+          : [],
+      }
+    }),
+  }))
+  const finalCount = summarizeUserCount({
+    id: createId('final'),
+    userId: 'final',
+    userName: 'Conteo final validado',
+    status: inventoryStatuses.validated,
+    createdAt: now,
+    updatedAt: now,
+    categories: finalCategories,
+  })
+
+  await updateDoc(doc(db, 'inventory', inventoryId), {
+    finalCount,
+    status: inventoryStatuses.validated,
+    updatedAt: serverTimestamp(),
+    updatedBy: userSnapshot,
   })
 }
 

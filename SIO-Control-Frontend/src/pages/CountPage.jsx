@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import {
   addCountEntry,
   deleteCountEntry,
-  getInventory,
+  getInventoryForUser,
   getLatestInventory,
   getTodayInventory,
   updateCountEntry,
@@ -14,15 +14,17 @@ import {
 } from '../services/inventoryService'
 import { filterProductRows, formatDateKey, formatNumber, formatTime, getCategoryProgress, getProductStatus, inventoryStatuses, observationOptions, productFilters } from '../utils/inventory'
 
-async function resolveInventory(id) {
-  return id ? getInventory(id) : (await getTodayInventory(formatDateKey())) || (await getLatestInventory())
+async function resolveInventory(id, user) {
+  if (id) return getInventoryForUser(id, user)
+  const selectedInventory = (await getTodayInventory(formatDateKey())) || (await getLatestInventory())
+  return selectedInventory?.id ? getInventoryForUser(selectedInventory.id, user) : null
 }
 
 export default function CountPage() {
   const [activeCategoryId, setActiveCategoryId] = useState('')
   const [compactView, setCompactView] = useState(false)
   const [error, setError] = useState('')
-  const [filterId, setFilterId] = useState('all')
+  const [filterId, setFilterId] = useState('global')
   const [inventory, setInventory] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -37,7 +39,7 @@ export default function CountPage() {
     if (showLoading) setLoading(true)
     setError('')
     try {
-      const selectedInventory = await resolveInventory(id)
+      const selectedInventory = await resolveInventory(id, user)
       setInventory(selectedInventory)
       setActiveCategoryId((current) => current || selectedInventory?.categories?.[0]?.id || '')
     } catch (loadError) {
@@ -51,7 +53,7 @@ export default function CountPage() {
     let active = true
     async function loadInitialInventory() {
       try {
-        const selectedInventory = await resolveInventory(id)
+        const selectedInventory = await resolveInventory(id, user)
         if (!active) return
         setInventory(selectedInventory)
         setActiveCategoryId(selectedInventory?.categories?.[0]?.id || '')
@@ -66,7 +68,7 @@ export default function CountPage() {
     return () => {
       active = false
     }
-  }, [id])
+  }, [id, user])
 
   useEffect(() => {
     function handleWindowScroll() {
@@ -159,6 +161,11 @@ export default function CountPage() {
     productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  function clearAllFilters() {
+    setFilterId('global')
+    setSearch('')
+  }
+
   if (loading) return <LoadingState label="Cargando conteo" />
   if (!inventory) {
     return (
@@ -192,6 +199,7 @@ export default function CountPage() {
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Conteo en proceso</p>
               <Badge tone="blue">{inventory.status || inventoryStatuses.inProgress}</Badge>
+              <Badge tone="green">Modo individual</Badge>
             </div>
             <h2 className="mt-2 break-words text-2xl font-black leading-tight tracking-tight text-slate-50 sm:text-3xl lg:text-4xl">
               Inventario diario - {inventory.fecha || inventory.dateKey}
@@ -201,12 +209,15 @@ export default function CountPage() {
               <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">Avance general {inventory.progress}%</span>
               <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.countedProducts} de {inventory.totalProducts} productos</span>
               <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.totalMovements || 0} movimientos</span>
+              <span className="rounded-md bg-blue-500/10 px-3 py-1 text-blue-100 ring-1 ring-blue-300/20">{inventory.activeUserCount?.userName || user?.email}</span>
+              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.userCountCount} conteo{inventory.userCountCount === 1 ? '' : 's'} registrado{inventory.userCountCount === 1 ? '' : 's'}</span>
             </div>
           </div>
 
-          <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-2 xl:min-w-[460px]">
+          <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-3 xl:min-w-[620px]">
             <Button className="w-full" onClick={() => handleSave(inventoryStatuses.inProgress)} tone="blue">Guardar</Button>
             <Button className="w-full" onClick={() => handleSave(inventoryStatuses.saved)} tone="dark">Guardar y salir</Button>
+            <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light">Comparar conteos</Button>
           </div>
         </div>
       </section>
@@ -229,7 +240,7 @@ export default function CountPage() {
         filterId={filterId}
         inventory={inventory}
         onCategoryChange={setActiveCategoryId}
-        onClearFilters={() => setFilterId('all')}
+        onClearFilters={clearAllFilters}
         onClearSearch={() => setSearch('')}
         onClose={() => setToolsOpen(false)}
         onCompactViewChange={setCompactView}
@@ -238,16 +249,23 @@ export default function CountPage() {
         onSave={() => handleSave(inventoryStatuses.inProgress)}
         onSaveAndExit={() => handleSave(inventoryStatuses.saved)}
         onScrollToProducts={scrollToProducts}
+        onCompare={() => navigate(`/inventario/${inventory.id}/comparar`)}
         open={toolsOpen}
         search={search}
       />
 
       <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 md:block">
-        <div className="grid gap-3 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1fr)_auto] xl:items-start">
+        <div className="grid gap-3 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1fr)_auto_auto] xl:items-start">
           <SearchBox search={search} setSearch={setSearch} />
-          <FilterChips filterId={filterId} setFilterId={setFilterId} />
+          <div>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Vista global y filtros</div>
+            <FilterChips filterId={filterId} setFilterId={setFilterId} />
+          </div>
           <Button className="whitespace-nowrap" onClick={() => setCompactView((value) => !value)} tone="light">
             {compactView ? 'Vista detallada' : 'Vista compacta'}
+          </Button>
+          <Button className="whitespace-nowrap" onClick={clearAllFilters} tone="light">
+            Limpiar filtros
           </Button>
         </div>
       </section>
@@ -431,10 +449,15 @@ function SearchBox({ active = false, onBlur, onClear, onFocus, search, setSearch
   )
 }
 
-function FilterChips({ filterId, layout = 'scroll', setFilterId }) {
+function FilterChips({ excludeIds = [], filterId, ids = null, layout = 'scroll', setFilterId }) {
+  const visibleFilters = productFilters.filter((filter) => {
+    if (ids) return ids.includes(filter.id)
+    return !excludeIds.includes(filter.id)
+  })
+
   return (
     <div className={`touch-scroll flex gap-2 pb-1 ${layout === 'wrap' ? 'flex-wrap overflow-visible' : 'overflow-x-auto xl:flex-wrap xl:overflow-visible'}`}>
-      {productFilters.map((filter) => (
+      {visibleFilters.map((filter) => (
         <button
           className={`min-h-11 flex-none rounded-full border px-4 text-sm font-black transition ${
             filterId === filter.id
@@ -466,6 +489,7 @@ function ToolsPanel({
   onCompactViewChange,
   onFilterChange,
   onGoCategory,
+  onCompare,
   onSave,
   onSaveAndExit,
   onScrollToProducts,
@@ -569,8 +593,13 @@ function ToolsPanel({
           </section>
 
           <section>
-            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Filtros</div>
-            <FilterChips filterId={filterId} layout="wrap" setFilterId={onFilterChange} />
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Vista global</div>
+            <FilterChips filterId={filterId} ids={['global']} layout="wrap" setFilterId={onFilterChange} />
+          </section>
+
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Filtros de estado</div>
+            <FilterChips filterId={filterId} excludeIds={['global']} layout="wrap" setFilterId={onFilterChange} />
           </section>
 
           <section>
@@ -598,9 +627,10 @@ function ToolsPanel({
             <div className="grid gap-2">
               <Button className="w-full justify-start" onClick={onScrollToProducts} tone="light">Ir al inicio de categoria</Button>
               <Button className="w-full justify-start" onClick={onClearSearch} tone="light" disabled={!search}>Limpiar busqueda</Button>
-              <Button className="w-full justify-start" onClick={onClearFilters} tone="light" disabled={filterId === 'all'}>Limpiar filtros</Button>
+              <Button className="w-full justify-start" onClick={onClearFilters} tone="light" disabled={filterId === 'global' && !search}>Limpiar filtros</Button>
               <Button className="w-full justify-start" onClick={() => onFilterChange('counted')} tone="light">Solo con movimientos</Button>
               <Button className="w-full justify-start" onClick={() => onFilterChange('pending')} tone="light">Solo sin contar</Button>
+              <Button className="w-full justify-start" onClick={onCompare} tone="light">Comparar conteos</Button>
             </div>
           </section>
         </div>

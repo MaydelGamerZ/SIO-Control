@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BadgeCheck, BarChart3, ClipboardCheck, FileText, RotateCcw } from 'lucide-react'
+import { BadgeCheck, BarChart3, ClipboardCheck, FileText, GitCompare, RotateCcw } from 'lucide-react'
 import { Badge, Button, ErrorState, Kpi, LoadingState, Metric, PageTitle } from '../components/ui'
 import { getInventory } from '../services/inventoryService'
 import { formatDisplayDate, formatNumber, formatTime, getProductStatus } from '../utils/inventory'
@@ -42,6 +42,7 @@ export default function InventoryDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => navigate('/inventario/historial')} tone="light"><RotateCcw className="mr-2 inline" size={18} />Volver al historial</Button>
             <Button onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="dark">Editar conteo</Button>
+            <Button onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="blue"><GitCompare className="mr-2 inline" size={18} />Comparar</Button>
           </div>
         }
         eyebrow="Detalle auditado"
@@ -53,17 +54,49 @@ export default function InventoryDetailPage() {
 
       <div className="grid gap-4 md:grid-cols-4">
         <Kpi label="Stock original" value={formatNumber(inventory.totalStock)} icon={FileText} />
-        <Kpi label="Total contado" value={formatNumber(inventory.totalCounted)} icon={ClipboardCheck} />
+        <Kpi label="Total contado" value={formatNumber(inventory.finalCount?.totalCounted ?? inventory.totalCounted)} icon={ClipboardCheck} />
         <Kpi label="Diferencia total" value={formatNumber(inventory.difference)} icon={BarChart3} tone={inventory.difference === 0 ? 'green' : 'red'} />
         <Kpi label="Estatus final" value={inventory.status} icon={BadgeCheck} tone="blue" />
       </div>
 
-      <section className="mt-6 space-y-4">
-        {inventory.categories.map((category) => (
-          <details className="rounded-xl border border-white/10 bg-slate-900/80 shadow-xl shadow-black/15" key={category.id} open>
+      <section className="mt-6 space-y-5">
+        {inventory.userCounts.length > 0 ? (
+          inventory.userCounts.map((count, index) => (
+            <CountAuditSection count={count} key={count.id} title={`Conteo Usuario ${index + 1}: ${count.userName}`} />
+          ))
+        ) : (
+          <CountAuditSection count={{ categories: inventory.categories }} title="Conteo registrado" />
+        )}
+        {inventory.userCounts.length >= 2 && (
+          <section className="rounded-xl border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-black/15">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Comparacion</p>
+                <h3 className="mt-1 text-2xl font-black text-slate-50">Validacion entre usuarios</h3>
+              </div>
+              <Button onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light">Abrir comparacion</Button>
+            </div>
+          </section>
+        )}
+        {inventory.finalCount && <CountAuditSection count={inventory.finalCount} title="Conteo final validado" />}
+      </section>
+    </>
+  )
+}
+
+function CountAuditSection({ count, title }) {
+  return (
+    <section>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-2xl font-black text-slate-50">{title}</h3>
+        <Badge tone="blue">{formatNumber(count.totalCounted || 0)} unidades</Badge>
+      </div>
+      <div className="space-y-4">
+        {(count.categories || []).map((category) => (
+          <details className="rounded-xl border border-white/10 bg-slate-900/80 shadow-xl shadow-black/15" key={category.id}>
             <summary className="cursor-pointer list-none p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="break-words text-2xl font-black text-slate-50">{category.name}</h3>
+                <h4 className="break-words text-xl font-black text-slate-50">{category.name}</h4>
                 <Badge tone="blue">{category.products.length} productos</Badge>
               </div>
             </summary>
@@ -84,7 +117,7 @@ export default function InventoryDetailPage() {
                       <Badge tone={status.tone}>{status.label}</Badge>
                     </div>
                     <div className="mt-4 rounded-xl bg-slate-950/50 p-4 ring-1 ring-white/10">
-                      <h4 className="font-black text-slate-100">Historial de conteos</h4>
+                      <h5 className="font-black text-slate-100">Historial de conteos</h5>
                       <div className="mt-3 grid gap-2">
                         {product.countEntries.length === 0 && <div className="text-sm font-bold text-slate-400">Sin registros.</div>}
                         {product.countEntries.map((entry) => (
@@ -103,7 +136,7 @@ export default function InventoryDetailPage() {
             </div>
           </details>
         ))}
-      </section>
-    </>
+      </div>
+    </section>
   )
 }

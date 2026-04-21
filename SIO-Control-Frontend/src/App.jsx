@@ -3,6 +3,7 @@ import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './contexts/AuthContext'
 import CountPage from './pages/CountPage'
+import ComparisonPage from './pages/ComparisonPage'
 import HomePage from './pages/HomePage'
 import HistoryPage from './pages/HistoryPage'
 import InventoryDetailPage from './pages/InventoryDetailPage'
@@ -23,9 +24,11 @@ const router = createBrowserRouter([
           { path: '/inventario/resumen', element: <SummaryPage /> },
           { path: '/inventario/cargar', element: <UploadInventoryPage /> },
           { path: '/inventario/conteo', element: <CountPage /> },
+          { path: '/inventario/comparar', element: <ComparisonPage /> },
           { path: '/inventario/historial', element: <HistoryPage /> },
           { path: '/inventario/:id', element: <InventoryDetailPage /> },
           { path: '/inventario/:id/editar', element: <CountPage /> },
+          { path: '/inventario/:id/comparar', element: <ComparisonPage /> },
         ],
       },
     ],
