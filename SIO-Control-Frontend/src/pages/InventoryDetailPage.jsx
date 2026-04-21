@@ -60,22 +60,22 @@ export default function InventoryDetailPage() {
 
       <section className="mt-6 space-y-4">
         {inventory.categories.map((category) => (
-          <details className="rounded-lg border border-slate-200 bg-white shadow-sm" key={category.id} open>
+          <details className="rounded-xl border border-white/10 bg-slate-900/80 shadow-xl shadow-black/15" key={category.id} open>
             <summary className="cursor-pointer list-none p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-2xl font-black text-slate-950">{category.name}</h3>
+                <h3 className="break-words text-2xl font-black text-slate-50">{category.name}</h3>
                 <Badge tone="blue">{category.products.length} productos</Badge>
               </div>
             </summary>
-            <div className="divide-y divide-slate-100 border-t border-slate-200">
+            <div className="divide-y divide-white/10 border-t border-white/10">
               {category.products.map((product) => {
                 const status = getProductStatus(product)
                 return (
                   <div className="p-5" key={product.id}>
                     <div className="grid gap-4 xl:grid-cols-[minmax(260px,1fr)_repeat(4,130px)_auto] xl:items-center">
                       <div>
-                        <div className="font-black text-slate-950">{product.name}</div>
-                        <div className="mt-1 text-sm text-slate-500">{product.countEntries.length} conteos registrados</div>
+                        <div className="break-words font-black text-slate-50">{product.name}</div>
+                        <div className="mt-1 text-sm text-slate-400">{product.countEntries.length} conteos registrados</div>
                       </div>
                       <Metric label="Stock" value={product.stock} />
                       <Metric label="Contado" value={product.totalCounted} />
@@ -83,16 +83,16 @@ export default function InventoryDetailPage() {
                       <Metric label="No disp." value={product.noDisponible} />
                       <Badge tone={status.tone}>{status.label}</Badge>
                     </div>
-                    <div className="mt-4 rounded-lg bg-slate-50 p-4">
-                      <h4 className="font-black text-slate-900">Historial de conteos</h4>
+                    <div className="mt-4 rounded-xl bg-slate-950/50 p-4 ring-1 ring-white/10">
+                      <h4 className="font-black text-slate-100">Historial de conteos</h4>
                       <div className="mt-3 grid gap-2">
                         {product.countEntries.length === 0 && <div className="text-sm font-bold text-slate-400">Sin registros.</div>}
                         {product.countEntries.map((entry) => (
-                          <div className="grid gap-2 rounded-lg bg-white p-3 md:grid-cols-[90px_1fr_100px_120px]" key={entry.id}>
-                            <strong>+{formatNumber(entry.quantity)}</strong>
+                          <div className="grid gap-2 rounded-lg bg-slate-900 p-3 text-slate-300 ring-1 ring-white/10 md:grid-cols-[90px_1fr_100px_120px]" key={entry.id}>
+                            <strong className="text-slate-50">+{formatNumber(entry.quantity)}</strong>
                             <span>{entry.observation}{entry.comment ? ` - ${entry.comment}` : ''}</span>
-                            <span className="text-slate-500">{formatTime(entry.createdAt)}</span>
-                            <span className="font-bold">{entry.userName}</span>
+                            <span className="text-slate-400">{formatTime(entry.createdAt)}</span>
+                            <span className="break-all font-bold text-slate-100">{entry.userName}</span>
                           </div>
                         ))}
                       </div>

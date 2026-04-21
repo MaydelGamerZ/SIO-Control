@@ -49,9 +49,9 @@ export default function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+    <div className="min-h-app bg-slate-950 text-slate-100">
       <button
-        className="fixed left-4 top-4 z-50 grid h-12 w-12 place-items-center rounded-lg bg-slate-950 text-white shadow-lg lg:hidden"
+        className="safe-top fixed left-4 top-0 z-50 mt-4 grid h-12 w-12 place-items-center rounded-xl border border-white/10 bg-slate-950 text-white shadow-xl shadow-black/40 lg:hidden"
         onClick={() => setDrawerOpen(true)}
         type="button"
         aria-label="Abrir menu"
@@ -62,14 +62,14 @@ export default function AppShell() {
       {drawerOpen && (
         <button
           aria-label="Cerrar menu"
-          className="fixed inset-0 z-40 bg-slate-950/45 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm lg:hidden"
           onClick={() => setDrawerOpen(false)}
           type="button"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex bg-slate-950 text-white transition-all duration-300 lg:translate-x-0 ${
+        className={`safe-top safe-bottom fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1.25rem)] bg-[#060b13] text-white transition-all duration-300 lg:max-w-none lg:translate-x-0 ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${sidebarCollapsed ? 'w-[88px]' : 'w-[320px] xl:w-[340px]'}`}
       >
@@ -111,7 +111,7 @@ export default function AppShell() {
 
           <nav className="flex-1 space-y-2 px-3">
             <button
-              className="flex min-h-14 w-full items-center justify-between rounded-lg bg-white/8 px-3 text-left text-sm font-black text-white ring-1 ring-white/10"
+              className="flex min-h-14 w-full items-center justify-between rounded-lg bg-white/10 px-3 text-left text-sm font-black text-white ring-1 ring-white/10"
               onClick={() => setInventoryOpen((value) => !value)}
               type="button"
             >
@@ -132,7 +132,7 @@ export default function AppShell() {
                         `flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-bold transition ${
                           isActive || (item.to.includes('historial') && isInventoryDetail)
                             ? 'bg-blue-500 text-white shadow-lg shadow-blue-950/20'
-                            : 'text-slate-300 hover:bg-white/8 hover:text-white'
+                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
                         } ${sidebarCollapsed ? 'justify-center' : ''}`
                       }
                       key={item.to}
@@ -150,7 +150,7 @@ export default function AppShell() {
 
           <div className="space-y-3 border-t border-white/10 p-4">
             <div className={`rounded-lg border border-white/10 bg-white/5 p-4 ${sidebarCollapsed ? 'grid place-items-center p-3' : ''}`}>
-              <div className="grid h-12 w-12 place-items-center rounded-lg bg-white text-sm font-black text-slate-950">
+              <div className="grid h-12 w-12 place-items-center rounded-lg bg-blue-500 text-sm font-black text-white">
                 {getInitials(user)}
               </div>
               {!sidebarCollapsed && (
@@ -173,20 +173,20 @@ export default function AppShell() {
         </div>
       </aside>
 
-      <main className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[88px]' : 'lg:pl-[320px] xl:pl-[340px]'}`}>
-        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur">
-          <div className="mx-auto flex min-h-20 max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+      <main className={`min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[88px]' : 'lg:pl-[320px] xl:pl-[340px]'}`}>
+        <header className="safe-top sticky top-0 z-30 border-b border-white/10 bg-slate-950/90 backdrop-blur">
+          <div className="safe-x mx-auto flex min-h-20 max-w-[1600px] items-center justify-between gap-4 sm:px-6 lg:px-8">
             <div className="pl-14 lg:pl-0">
               <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">SIO-Control</div>
-              <h1 className="mt-1 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">Conteo de inventario</h1>
+              <h1 className="mt-1 text-xl font-black tracking-tight text-slate-50 sm:text-2xl">Conteo de inventario</h1>
             </div>
             <div className="hidden items-center gap-3 md:flex">
-              <span className="rounded-md bg-blue-50 px-3 py-1 text-xs font-black text-blue-700 ring-1 ring-blue-200">Tablet ready</span>
-              <span className="rounded-md bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-200">Firestore activo</span>
+              <span className="rounded-md bg-blue-500/10 px-3 py-1 text-xs font-black text-blue-200 ring-1 ring-blue-300/20">Tablet ready</span>
+              <span className="rounded-md bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-200 ring-1 ring-emerald-300/20">Firestore activo</span>
             </div>
           </div>
         </header>
-        <div className="mx-auto max-w-[1600px] px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+        <div className="safe-x safe-bottom mx-auto max-w-[1600px] pt-4 sm:px-6 lg:px-8">
           <Outlet />
         </div>
       </main>

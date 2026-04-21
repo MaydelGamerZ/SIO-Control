@@ -1,0 +1,19 @@
+{
+  "name": "SIO-Control",
+  "short_name": "SIO-Control",
+  "description": "Conteo operativo de inventario",
+  "start_url": "/inventario/resumen",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#08111f",
+  "theme_color": "#08111f",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -57,14 +57,14 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-950 px-4 text-white">
-      <section className="w-full max-w-[460px] rounded-lg border border-white/10 bg-white/[0.04] p-7 shadow-2xl">
+    <main className="safe-x safe-bottom min-h-app grid place-items-center bg-slate-950 py-6 text-white">
+      <section className="w-full max-w-[460px] rounded-xl border border-white/10 bg-slate-900/80 p-5 shadow-2xl shadow-black/30 sm:p-7">
         <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-4 py-2 text-sm font-bold text-blue-200">
           <ShieldCheck size={16} />
           Sistema activo
         </div>
         <p className="mt-8 text-xs font-black uppercase tracking-[0.22em] text-slate-400">SIO-Control</p>
-        <h1 className="mt-2 text-4xl font-black tracking-tight">Acceso a inventario</h1>
+        <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Acceso a inventario</h1>
         <p className="mt-3 text-base font-medium leading-7 text-slate-300">
           Inicia sesion para cargar PDF, capturar conteos y consultar historiales guardados en Firestore.
         </p>

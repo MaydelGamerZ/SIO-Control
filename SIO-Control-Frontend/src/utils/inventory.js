@@ -52,15 +52,13 @@ export function slugify(value) {
 }
 
 export function normalizeInventory(rawInventory) {
-  const categories = (rawInventory.categories || []).map((category, categoryIndex) => ({
-    id: category.id || createId('cat'),
-    name: category.name || `Categoria ${categoryIndex + 1}`,
-    order: Number.isFinite(category.order) ? category.order : categoryIndex,
-    products: (category.products || []).map((product, productIndex) => {
+  const categories = (rawInventory.categories || []).map((category, categoryIndex) => {
+    const products = (category.products || []).map((product, productIndex) => {
       const countEntries = product.countEntries || []
       const totalCounted = countEntries.reduce((total, entry) => total + Number(entry.quantity || 0), 0)
       const stock = Number(product.stock || 0)
       return {
+        ...product,
         id: product.id || createId('prod'),
         name: product.name || `Producto ${productIndex + 1}`,
         order: Number.isFinite(product.order) ? product.order : productIndex,
@@ -70,8 +68,16 @@ export function normalizeInventory(rawInventory) {
         difference: totalCounted - stock,
         countEntries,
       }
-    }),
-  }))
+    })
+
+    return {
+      ...category,
+      id: category.id || createId('cat'),
+      name: category.name || `Categoria ${categoryIndex + 1}`,
+      order: Number.isFinite(category.order) ? category.order : categoryIndex,
+      products,
+    }
+  })
 
   const products = categories.flatMap((category) => category.products)
   const totalStock = products.reduce((total, product) => total + Number(product.stock || 0), 0)

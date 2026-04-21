@@ -30,9 +30,7 @@ export default function CountPage() {
   const navigate = useNavigate()
 
   async function refreshInventory(showLoading = false) {
-    if (showLoading) {
-      setLoading(true)
-    }
+    if (showLoading) setLoading(true)
     setError('')
     try {
       const selectedInventory = await resolveInventory(id)
@@ -66,13 +64,31 @@ export default function CountPage() {
     }
   }, [id])
 
-  const activeCategory = inventory?.categories?.find((category) => category.id === activeCategoryId) || inventory?.categories?.[0]
-  const activeIndex = inventory?.categories?.findIndex((category) => category.id === activeCategory?.id) ?? 0
-  const filteredProducts = useMemo(() => {
-    const products = activeCategory?.products || []
-    if (!search.trim()) return products
-    return products.filter((product) => product.name.toLowerCase().includes(search.toLowerCase()))
-  }, [activeCategory, search])
+  const categories = useMemo(() => inventory?.categories || [], [inventory])
+  const activeCategory = categories.find((category) => category.id === activeCategoryId) || categories[0]
+  const activeIndex = Math.max(categories.findIndex((category) => category.id === activeCategory?.id), 0)
+  const normalizedSearch = search.trim().toLowerCase()
+  const visibleProductRows = useMemo(() => {
+    if (!inventory) return []
+
+    if (normalizedSearch) {
+      return categories
+        .flatMap((category) =>
+          (category.products || []).map((product) => ({
+            categoryId: category.id,
+            categoryName: category.name,
+            product,
+          })),
+        )
+        .filter((row) => `${row.product.name} ${row.categoryName}`.toLowerCase().includes(normalizedSearch))
+    }
+
+    return (activeCategory?.products || []).map((product) => ({
+      categoryId: activeCategory.id,
+      categoryName: activeCategory.name,
+      product,
+    }))
+  }, [activeCategory, categories, inventory, normalizedSearch])
 
   async function handleAdd(categoryId, productId, values) {
     if (!inventory?.id) return
@@ -113,6 +129,7 @@ export default function CountPage() {
   }
 
   async function handleSave(status = inventoryStatuses.saved) {
+    if (!inventory?.id) return
     try {
       await updateInventoryStatus(inventory.id, status, user)
       await refreshInventory()
@@ -123,9 +140,9 @@ export default function CountPage() {
   }
 
   function goCategory(offset) {
-    if (!inventory?.categories?.length) return
-    const nextIndex = Math.min(Math.max(activeIndex + offset, 0), inventory.categories.length - 1)
-    setActiveCategoryId(inventory.categories[nextIndex].id)
+    if (!categories.length) return
+    const nextIndex = Math.min(Math.max(activeIndex + offset, 0), categories.length - 1)
+    setActiveCategoryId(categories[nextIndex].id)
   }
 
   if (loading) return <LoadingState label="Cargando conteo" />
@@ -140,135 +157,238 @@ export default function CountPage() {
     )
   }
 
+  if (!categories.length) {
+    return (
+      <EmptyState
+        action={<Button onClick={() => navigate('/inventario/cargar')} tone="blue">Cargar otro PDF</Button>}
+        description="El inventario cargado no contiene categorias detectadas. Vuelve a cargar el PDF diario."
+        icon={Clock3}
+        title="Inventario sin categorias"
+      />
+    )
+  }
+
   return (
     <>
       <ErrorState message={error} />
-      <section className="sticky top-20 z-20 mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Conteo en proceso</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">Inventario diario - {inventory.fecha || inventory.dateKey}</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">{inventory.cedis} - Avance general {inventory.progress}%</p>
+
+      <section className="mb-4 rounded-xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl shadow-black/20 lg:sticky lg:top-[calc(5rem+env(safe-area-inset-top))] lg:z-20 lg:mb-5">
+        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(640px,0.9fr)] 2xl:items-center">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Conteo en proceso</p>
+              <Badge tone="blue">{inventory.status || inventoryStatuses.inProgress}</Badge>
+            </div>
+            <h2 className="mt-2 break-words text-2xl font-black leading-tight tracking-tight text-slate-50 sm:text-3xl lg:text-4xl">
+              Inventario diario - {inventory.fecha || inventory.dateKey}
+            </h2>
+            <div className="mt-3 flex flex-wrap gap-2 text-sm font-bold text-slate-300">
+              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.cedis}</span>
+              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">Avance general {inventory.progress}%</span>
+              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.countedProducts} de {inventory.totalProducts} productos</span>
+            </div>
           </div>
-          <div className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_auto_auto]">
-            <label className="relative">
+
+          <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(260px,1fr)_auto] xl:grid-cols-[minmax(300px,1fr)_auto_auto]">
+            <label className="relative min-w-0">
               <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
               <input
-                className="min-h-14 w-full rounded-lg border border-slate-200 bg-slate-50 pl-12 pr-4 font-bold outline-none focus:border-blue-500 focus:bg-white"
+                className="min-h-14 w-full rounded-lg border border-white/10 bg-slate-950/70 pl-12 pr-4 font-bold text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950"
+                inputMode="search"
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Buscar producto"
                 value={search}
               />
             </label>
-            <Button onClick={() => setCompactView((value) => !value)} tone="light">{compactView ? 'Vista detallada' : 'Vista compacta'}</Button>
-            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => handleSave(inventoryStatuses.inProgress)} tone="blue">Guardar</Button>
-              <Button onClick={() => handleSave(inventoryStatuses.saved)} tone="dark">Guardar y salir</Button>
+            <Button className="w-full whitespace-nowrap" onClick={() => setCompactView((value) => !value)} tone="light">
+              {compactView ? 'Vista detallada' : 'Vista compacta'}
+            </Button>
+            <div className="grid grid-cols-2 gap-2 md:col-span-2 xl:col-span-1">
+              <Button className="w-full" onClick={() => handleSave(inventoryStatuses.inProgress)} tone="blue">Guardar</Button>
+              <Button className="w-full" onClick={() => handleSave(inventoryStatuses.saved)} tone="dark">Guardar y salir</Button>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <aside className="xl:sticky xl:top-44 xl:h-[calc(100svh-12rem)]">
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:h-full xl:overflow-y-auto">
-            <h3 className="text-lg font-black text-slate-950">Categorias del PDF</h3>
+      <section className="mb-4 rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 xl:hidden">
+        <label className="grid gap-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+          Categoria activa
+          <select
+            className="min-h-13 rounded-lg border border-white/10 bg-slate-950 px-4 text-base font-black normal-case tracking-normal text-slate-50 outline-none focus:border-blue-400"
+            onChange={(event) => setActiveCategoryId(event.target.value)}
+            value={activeCategory?.id || ''}
+          >
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.order + 1}. {category.name} ({category.products.length})
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button disabled={activeIndex <= 0} onClick={() => goCategory(-1)} tone="light">
+            <ChevronLeft size={18} /> Anterior
+          </Button>
+          <Button disabled={activeIndex >= categories.length - 1} onClick={() => goCategory(1)} tone="light">
+            Siguiente <ChevronRight size={18} />
+          </Button>
+        </div>
+        <div className="touch-scroll -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
+          {categories.map((category) => {
+            const progress = getCategoryProgress(category)
+            return (
+              <button
+                className={`min-h-11 flex-none rounded-full border px-4 text-sm font-black transition ${
+                  category.id === activeCategory?.id
+                    ? 'border-blue-300/40 bg-blue-500/20 text-blue-100'
+                    : 'border-white/10 bg-white/5 text-slate-300'
+                }`}
+                key={category.id}
+                onClick={() => setActiveCategoryId(category.id)}
+                type="button"
+              >
+                {category.name} {progress}%
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <aside className="hidden xl:block xl:sticky xl:top-[calc(15rem+env(safe-area-inset-top))] xl:h-[calc(100dvh-16rem)]">
+          <section className="touch-scroll h-full overflow-y-auto rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15">
+            <h3 className="text-lg font-black text-slate-50">Categorias del PDF</h3>
             <div className="mt-4 space-y-3">
-              {inventory.categories.map((category) => {
+              {categories.map((category) => {
                 const progress = getCategoryProgress(category)
                 return (
                   <button
-                    className={`w-full rounded-lg border p-4 text-left transition ${
-                      category.id === activeCategory?.id ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100' : 'border-slate-200 bg-white hover:bg-slate-50'
+                    className={`w-full rounded-xl border p-4 text-left transition ${
+                      category.id === activeCategory?.id ? 'border-blue-300/35 bg-blue-500/15 ring-2 ring-blue-500/10' : 'border-white/10 bg-white/5 hover:bg-white/10'
                     }`}
                     key={category.id}
                     onClick={() => setActiveCategoryId(category.id)}
                     type="button"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <strong className="text-slate-950">{category.name}</strong>
-                      {progress === 100 ? <CheckCircle2 className="text-emerald-600" size={20} /> : <Clock3 className="text-amber-500" size={20} />}
+                    <div className="flex items-start justify-between gap-3">
+                      <strong className="break-words text-slate-50">{category.name}</strong>
+                      {progress === 100 ? <CheckCircle2 className="flex-none text-emerald-300" size={20} /> : <Clock3 className="flex-none text-amber-300" size={20} />}
                     </div>
-                    <div className="mt-2 flex items-center justify-between text-sm font-bold text-slate-500">
+                    <div className="mt-2 flex items-center justify-between text-sm font-bold text-slate-400">
                       <span>{category.products.length} productos</span>
                       <span>{progress}%</span>
                     </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full bg-blue-600" style={{ width: `${progress}%` }} />
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} />
                     </div>
                   </button>
                 )
               })}
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <Button disabled={activeIndex <= 0} onClick={() => goCategory(-1)} tone="light"><ChevronLeft className="inline" size={18} /> Anterior</Button>
-              <Button disabled={activeIndex >= inventory.categories.length - 1} onClick={() => goCategory(1)} tone="dark">Siguiente <ChevronRight className="inline" size={18} /></Button>
+              <Button disabled={activeIndex <= 0} onClick={() => goCategory(-1)} tone="light"><ChevronLeft size={18} /> Anterior</Button>
+              <Button disabled={activeIndex >= categories.length - 1} onClick={() => goCategory(1)} tone="light">Siguiente <ChevronRight size={18} /></Button>
             </div>
           </section>
         </aside>
 
-        <section>
-          <div className="mb-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="min-w-0">
+          <div className="mb-4 rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Categoria activa {activeIndex + 1} de {inventory.categories.length}</p>
-                <h3 className="mt-1 text-3xl font-black text-slate-950">{activeCategory?.name}</h3>
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">
+                  {normalizedSearch ? `${visibleProductRows.length} resultados` : `Categoria activa ${activeIndex + 1} de ${categories.length}`}
+                </p>
+                <h3 className="mt-1 break-words text-2xl font-black leading-tight text-slate-50 sm:text-3xl">
+                  {normalizedSearch ? 'Resultados de busqueda' : activeCategory?.name}
+                </h3>
               </div>
-              <Badge tone={getCategoryProgress(activeCategory) === 100 ? 'green' : 'amber'}>{getCategoryProgress(activeCategory) === 100 ? 'Revisada' : 'Pendiente'}</Badge>
+              {!normalizedSearch && (
+                <Badge tone={getCategoryProgress(activeCategory) === 100 ? 'green' : 'amber'}>
+                  {getCategoryProgress(activeCategory) === 100 ? 'Revisada' : 'Pendiente'}
+                </Badge>
+              )}
             </div>
           </div>
 
-          <div className="space-y-4">
-            {filteredProducts.map((product) =>
-              compactView ? (
-                <ProductCompactRow categoryId={activeCategory.id} key={product.id} onAdd={handleAdd} product={product} />
-              ) : (
-                <ProductCard
-                  categoryId={activeCategory.id}
-                  key={product.id}
-                  onAdd={handleAdd}
-                  onDelete={handleDelete}
-                  onEdit={handleEdit}
-                  product={product}
-                />
-              ),
-            )}
-          </div>
+          {visibleProductRows.length === 0 ? (
+            <EmptyState description="Ajusta la busqueda o cambia de categoria para continuar." title="Sin productos visibles" />
+          ) : (
+            <div className="space-y-4">
+              {visibleProductRows.map((row) =>
+                compactView ? (
+                  <ProductCompactRow categoryId={row.categoryId} categoryName={row.categoryName} key={`${row.categoryId}-${row.product.id}`} onAdd={handleAdd} product={row.product} showCategory={Boolean(normalizedSearch)} />
+                ) : (
+                  <ProductCard
+                    categoryId={row.categoryId}
+                    categoryName={row.categoryName}
+                    key={`${row.categoryId}-${row.product.id}`}
+                    onAdd={handleAdd}
+                    onDelete={handleDelete}
+                    onEdit={handleEdit}
+                    product={row.product}
+                    showCategory={Boolean(normalizedSearch)}
+                  />
+                ),
+              )}
+            </div>
+          )}
         </section>
       </div>
     </>
   )
 }
 
-function ProductCompactRow({ categoryId, onAdd, product }) {
+function ProductCompactRow({ categoryId, categoryName, onAdd, product, showCategory }) {
   const [quantity, setQuantity] = useState('')
-  const diffTone = product.difference === 0 ? 'green' : product.difference > 0 ? 'amber' : 'red'
+  const status = getProductStatus(product)
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_repeat(4,120px)_180px] lg:items-center">
-        <div>
-          <div className="font-black text-slate-950">{product.name}</div>
-          <div className="mt-1 text-sm text-slate-500">{product.countEntries.length} registros capturados</div>
+    <article className="rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15">
+      <div className="grid gap-4 lg:grid-cols-[minmax(260px,1fr)_minmax(360px,0.85fr)_190px] lg:items-center">
+        <div className="min-w-0">
+          {showCategory && <Badge tone="blue">{categoryName}</Badge>}
+          <div className="mt-2 break-words text-lg font-black text-slate-50">{product.name}</div>
+          <div className="mt-1 text-sm text-slate-400">{product.countEntries.length} registros capturados</div>
         </div>
-        <Metric label="Stock" value={product.stock} />
-        <Metric label="No disp." value={product.noDisponible} />
-        <Metric label="Total" value={product.totalCounted} />
-        <Metric label="Dif." value={product.difference} tone={diffTone} />
-        <div className="flex gap-2">
-          <input className="min-h-12 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 font-black" onChange={(event) => setQuantity(event.target.value)} placeholder="0" type="number" value={quantity} />
-          <Button onClick={() => { onAdd(categoryId, product.id, { quantity, observation: 'Buen estado', comment: '' }); setQuantity('') }} tone="blue">Agregar</Button>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Metric label="Stock" value={product.stock} />
+          <Metric label="No disp." value={product.noDisponible} />
+          <Metric label="Total" value={product.totalCounted} />
+          <Metric label="Dif." value={product.difference} tone={status.tone} />
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <input
+            className="min-h-12 min-w-0 rounded-lg border border-white/10 bg-slate-950/70 px-3 font-black text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400"
+            inputMode="decimal"
+            min="0"
+            onChange={(event) => setQuantity(event.target.value)}
+            placeholder="0"
+            type="number"
+            value={quantity}
+          />
+          <Button
+            onClick={() => {
+              onAdd(categoryId, product.id, { quantity, observation: 'Buen estado', comment: '' })
+              setQuantity('')
+            }}
+            tone="blue"
+          >
+            Agregar
+          </Button>
         </div>
       </div>
     </article>
   )
 }
 
-function ProductCard({ categoryId, onAdd, onDelete, onEdit, product }) {
+function ProductCard({ categoryId, categoryName, onAdd, onDelete, onEdit, product, showCategory }) {
   const [comment, setComment] = useState('')
   const [observation, setObservation] = useState('Buen estado')
   const [quantity, setQuantity] = useState('')
   const status = getProductStatus(product)
+  const hasSpecialObservation = product.countEntries.some((entry) => entry.observation !== 'Buen estado')
 
   function submit() {
     onAdd(categoryId, product.id, { comment, observation, quantity })
@@ -278,17 +398,18 @@ function ProductCard({ categoryId, onAdd, onDelete, onEdit, product }) {
   }
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
+    <article className="rounded-xl border border-white/10 bg-slate-900/85 p-4 shadow-xl shadow-black/15 sm:p-5">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.72fr)] xl:items-start">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h4 className="text-2xl font-black text-slate-950">{product.name}</h4>
+            {showCategory && <Badge tone="blue">{categoryName}</Badge>}
             <Badge tone={status.tone}>{status.label}</Badge>
-            {product.countEntries.some((entry) => entry.observation !== 'Buen estado') && <Badge tone="amber">Observaciones</Badge>}
+            {hasSpecialObservation && <Badge tone="amber">Observaciones</Badge>}
             {product.countEntries.length > 1 && <Badge tone="blue">{product.countEntries.length} registros</Badge>}
           </div>
+          <h4 className="mt-3 break-words text-2xl font-black leading-tight text-slate-50 sm:text-3xl">{product.name}</h4>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
           <Metric label="Stock sistema" value={product.stock} />
           <Metric label="No disponible" value={product.noDisponible} />
           <Metric label="Total contado" value={product.totalCounted} />
@@ -296,36 +417,55 @@ function ProductCard({ categoryId, onAdd, onDelete, onEdit, product }) {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 xl:grid-cols-[150px_190px_minmax(180px,1fr)_160px]">
-        <input className="min-h-14 rounded-lg border border-slate-200 bg-slate-50 px-4 text-xl font-black outline-none focus:border-blue-500 focus:bg-white" onChange={(event) => setQuantity(event.target.value)} placeholder="0" type="number" value={quantity} />
-        <select className="min-h-14 rounded-lg border border-slate-200 bg-white px-4 font-bold outline-none focus:border-blue-500" onChange={(event) => setObservation(event.target.value)} value={observation}>
+      <div className="mt-5 grid gap-3 lg:grid-cols-[150px_190px_minmax(180px,1fr)_170px]">
+        <input
+          className="min-h-14 rounded-lg border border-white/10 bg-slate-950/70 px-4 text-xl font-black text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950"
+          inputMode="decimal"
+          min="0"
+          onChange={(event) => setQuantity(event.target.value)}
+          placeholder="0"
+          type="number"
+          value={quantity}
+        />
+        <select
+          className="min-h-14 rounded-lg border border-white/10 bg-slate-950/70 px-4 font-bold text-slate-50 outline-none focus:border-blue-400"
+          onChange={(event) => setObservation(event.target.value)}
+          value={observation}
+        >
           {observationOptions.map((option) => <option key={option}>{option}</option>)}
         </select>
-        <input className="min-h-14 rounded-lg border border-slate-200 bg-slate-50 px-4 font-semibold outline-none focus:border-blue-500 focus:bg-white" onChange={(event) => setComment(event.target.value)} placeholder="Comentario corto opcional" value={comment} />
-        <Button onClick={submit} tone="blue">Agregar conteo</Button>
+        <input
+          className="min-h-14 rounded-lg border border-white/10 bg-slate-950/70 px-4 font-semibold text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950"
+          onChange={(event) => setComment(event.target.value)}
+          placeholder="Comentario corto opcional"
+          value={comment}
+        />
+        <Button className="w-full" onClick={submit} tone="blue">Agregar conteo</Button>
       </div>
 
-      <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <div className="flex items-center justify-between">
-          <h5 className="font-black text-slate-900">Registros capturados</h5>
-          <span className="text-sm font-black text-blue-700">{product.countEntries.length} movimientos</span>
-        </div>
-        <div className="mt-3 grid gap-2">
-          {product.countEntries.length === 0 && <div className="rounded-lg bg-white p-4 text-sm font-bold text-slate-400">Sin conteos capturados todavia</div>}
+      <details className="mt-5 rounded-xl border border-white/10 bg-slate-950/45" defaultOpen={product.countEntries.length > 0}>
+        <summary className="cursor-pointer list-none p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h5 className="font-black text-slate-100">Registros capturados</h5>
+            <span className="text-sm font-black text-blue-200">{product.countEntries.length} movimientos</span>
+          </div>
+        </summary>
+        <div className="grid gap-2 border-t border-white/10 p-3 sm:p-4">
+          {product.countEntries.length === 0 && <div className="rounded-lg bg-white/5 p-4 text-sm font-bold text-slate-400">Sin conteos capturados todavia</div>}
           {product.countEntries.map((entry) => (
-            <div className="grid gap-3 rounded-lg bg-white p-3 sm:grid-cols-[90px_minmax(0,1fr)_80px_100px_80px] sm:items-center" key={entry.id}>
-              <strong className="text-lg text-slate-950">+{formatNumber(entry.quantity)}</strong>
-              <span className="font-bold text-slate-600">{entry.observation}{entry.comment ? ` - ${entry.comment}` : ''}</span>
+            <div className="grid gap-3 rounded-lg bg-slate-900 p-3 ring-1 ring-white/10 sm:grid-cols-[90px_minmax(0,1fr)_80px_110px_72px] sm:items-center" key={entry.id}>
+              <strong className="text-lg text-slate-50">+{formatNumber(entry.quantity)}</strong>
+              <span className="min-w-0 break-words font-bold text-slate-300">{entry.observation}{entry.comment ? ` - ${entry.comment}` : ''}</span>
               <span className="text-sm font-bold text-slate-400">{formatTime(entry.createdAt)}</span>
-              <span className="text-sm font-black text-slate-700">{entry.userName}</span>
-              <span className="flex gap-2 text-slate-400">
-                <button onClick={() => onEdit(categoryId, product.id, entry)} type="button" aria-label="Editar registro"><Edit3 size={18} /></button>
-                <button onClick={() => onDelete(categoryId, product.id, entry.id)} type="button" aria-label="Eliminar registro"><Trash2 size={18} /></button>
+              <span className="min-w-0 break-all text-sm font-black text-slate-200">{entry.userName}</span>
+              <span className="flex gap-2 text-slate-300">
+                <button className="grid h-10 w-10 place-items-center rounded-lg bg-white/10 hover:bg-white/15" onClick={() => onEdit(categoryId, product.id, entry)} type="button" aria-label="Editar registro"><Edit3 size={18} /></button>
+                <button className="grid h-10 w-10 place-items-center rounded-lg bg-rose-500/10 text-rose-100 hover:bg-rose-500/20" onClick={() => onDelete(categoryId, product.id, entry.id)} type="button" aria-label="Eliminar registro"><Trash2 size={18} /></button>
               </span>
             </div>
           ))}
         </div>
-      </div>
+      </details>
     </article>
   )
 }

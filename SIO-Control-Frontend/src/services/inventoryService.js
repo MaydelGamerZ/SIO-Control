@@ -32,10 +32,12 @@ function makeUserSnapshot(user) {
 
 function prepareCategories(categories) {
   return (categories || []).map((category, categoryIndex) => ({
+    ...category,
     id: category.id || createId('cat'),
     name: category.name || `Categoria ${categoryIndex + 1}`,
     order: Number.isFinite(category.order) ? category.order : categoryIndex,
     products: (category.products || []).map((product, productIndex) => ({
+      ...product,
       id: product.id || createId('prod'),
       name: product.name || `Producto ${productIndex + 1}`,
       order: Number.isFinite(product.order) ? product.order : productIndex,

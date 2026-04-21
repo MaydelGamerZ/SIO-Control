@@ -3,11 +3,11 @@ import { formatNumber } from '../utils/inventory'
 
 export function Badge({ children, tone = 'slate' }) {
   const tones = {
-    amber: 'bg-amber-50 text-amber-800 ring-amber-200',
-    blue: 'bg-blue-50 text-blue-700 ring-blue-200',
-    green: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-    red: 'bg-rose-50 text-rose-700 ring-rose-200',
-    slate: 'bg-slate-100 text-slate-700 ring-slate-200',
+    amber: 'bg-amber-400/10 text-amber-200 ring-amber-300/25',
+    blue: 'bg-blue-500/10 text-blue-200 ring-blue-300/25',
+    green: 'bg-emerald-400/10 text-emerald-200 ring-emerald-300/25',
+    red: 'bg-rose-500/10 text-rose-200 ring-rose-300/25',
+    slate: 'bg-slate-700/70 text-slate-200 ring-white/10',
   }
 
   return (
@@ -19,15 +19,15 @@ export function Badge({ children, tone = 'slate' }) {
 
 export function Button({ children, className = '', tone = 'dark', type = 'button', ...props }) {
   const tones = {
-    blue: 'bg-blue-600 text-white hover:bg-blue-700',
-    danger: 'bg-rose-600 text-white hover:bg-rose-700',
-    dark: 'bg-slate-950 text-white hover:bg-slate-800',
-    light: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
+    blue: 'bg-blue-600 text-white hover:bg-blue-500 focus-visible:ring-blue-300/40',
+    danger: 'bg-rose-600 text-white hover:bg-rose-500 focus-visible:ring-rose-300/40',
+    dark: 'border border-white/10 bg-slate-800 text-white hover:bg-slate-700 focus-visible:ring-white/20',
+    light: 'border border-white/10 bg-white/10 text-slate-100 hover:bg-white/15 focus-visible:ring-white/20',
   }
 
   return (
     <button
-      className={`min-h-12 rounded-lg px-5 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${tones[tone]} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-center text-sm font-black shadow-sm transition focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5 ${tones[tone]} ${className}`}
       type={type}
       {...props}
     >
@@ -38,11 +38,11 @@ export function Button({ children, className = '', tone = 'dark', type = 'button
 
 export function PageTitle({ action, children, eyebrow, title }) {
   return (
-    <section className="mb-6 flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
-      <div>
+    <section className="mb-5 flex flex-col gap-4 rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/20 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+      <div className="min-w-0">
         <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">{eyebrow}</p>
-        <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">{title}</h2>
-        {children && <p className="mt-2 max-w-3xl text-base font-medium leading-7 text-slate-500">{children}</p>}
+        <h2 className="mt-2 break-words text-2xl font-black tracking-tight text-slate-50 sm:text-3xl md:text-4xl">{title}</h2>
+        {children && <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-300 sm:text-base sm:leading-7">{children}</p>}
       </div>
       {action}
     </section>
@@ -52,47 +52,47 @@ export function PageTitle({ action, children, eyebrow, title }) {
 export function Kpi({ label, value, icon, tone = 'slate' }) {
   const IconComponent = icon
   const tones = {
-    blue: 'bg-blue-50 text-blue-700',
-    green: 'bg-emerald-50 text-emerald-700',
-    red: 'bg-rose-50 text-rose-700',
-    slate: 'bg-slate-100 text-slate-700',
+    blue: 'bg-blue-500/10 text-blue-200 ring-1 ring-blue-300/15',
+    green: 'bg-emerald-400/10 text-emerald-200 ring-1 ring-emerald-300/15',
+    red: 'bg-rose-500/10 text-rose-200 ring-1 ring-rose-300/15',
+    slate: 'bg-slate-800 text-slate-200 ring-1 ring-white/10',
   }
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15">
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-black uppercase tracking-wider text-slate-400">{label}</span>
         <div className={`grid h-10 w-10 place-items-center rounded-lg ${tones[tone] || tones.slate}`}>
           <IconComponent size={20} />
         </div>
       </div>
-      <strong className="mt-3 block text-2xl font-black tracking-tight text-slate-950">{value}</strong>
+      <strong className="mt-3 block break-words text-2xl font-black tracking-tight text-slate-50">{value}</strong>
     </article>
   )
 }
 
 export function Metric({ label, value, tone = 'slate' }) {
   const tones = {
-    amber: 'text-amber-700',
-    green: 'text-emerald-700',
-    red: 'text-rose-700',
-    slate: 'text-slate-950',
+    amber: 'text-amber-200',
+    green: 'text-emerald-200',
+    red: 'text-rose-200',
+    slate: 'text-slate-50',
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="text-xs font-black uppercase text-slate-400">{label}</div>
-      <div className={`mt-1 text-lg font-black ${tones[tone]}`}>{typeof value === 'number' ? formatNumber(value) : value}</div>
+      <div className={`mt-1 break-words text-lg font-black ${tones[tone]}`}>{typeof value === 'number' ? formatNumber(value) : value}</div>
     </div>
   )
 }
 
 export function LoadingState({ label = 'Cargando datos' }) {
   return (
-    <div className="grid min-h-[360px] place-items-center rounded-lg border border-slate-200 bg-white">
+    <div className="grid min-h-[360px] place-items-center rounded-xl border border-white/10 bg-slate-900/80">
       <div className="text-center">
         <LoaderCircle className="mx-auto animate-spin text-blue-600" size={34} />
-        <p className="mt-3 font-black text-slate-700">{label}</p>
+        <p className="mt-3 font-black text-slate-200">{label}</p>
       </div>
     </div>
   )
@@ -100,15 +100,15 @@ export function LoadingState({ label = 'Cargando datos' }) {
 
 export function ErrorState({ message }) {
   if (!message) return null
-  return <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 font-bold text-rose-700">{message}</div>
+  return <div className="mb-4 rounded-xl border border-rose-400/25 bg-rose-500/10 p-4 font-bold text-rose-100">{message}</div>
 }
 
 export function EmptyState({ action, description, icon: Icon, title }) {
   return (
-    <section className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+    <section className="rounded-xl border border-dashed border-white/15 bg-slate-900/60 p-6 text-center sm:p-8">
       {Icon && <Icon className="mx-auto text-slate-400" size={38} />}
-      <h3 className="mt-3 text-2xl font-black text-slate-900">{title}</h3>
-      <p className="mx-auto mt-2 max-w-2xl text-slate-500">{description}</p>
+      <h3 className="mt-3 text-2xl font-black text-slate-50">{title}</h3>
+      <p className="mx-auto mt-2 max-w-2xl text-slate-300">{description}</p>
       {action && <div className="mt-5">{action}</div>}
     </section>
   )

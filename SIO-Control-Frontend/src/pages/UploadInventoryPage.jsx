@@ -54,8 +54,8 @@ export default function UploadInventoryPage() {
       <ErrorState message={error} />
 
       <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <label className="grid min-h-[260px] cursor-pointer place-items-center rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/60 p-6 text-center transition hover:border-blue-400">
+        <section className="rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:p-5">
+          <label className="grid min-h-[260px] cursor-pointer place-items-center rounded-xl border-2 border-dashed border-blue-300/25 bg-blue-500/10 p-6 text-center transition hover:border-blue-300/60 hover:bg-blue-500/15">
             <input
               accept="application/pdf"
               className="sr-only"
@@ -64,11 +64,11 @@ export default function UploadInventoryPage() {
               type="file"
             />
             <div>
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-lg bg-white text-blue-700 shadow-sm">
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-xl bg-blue-500/10 text-blue-200 shadow-sm ring-1 ring-blue-300/20">
                 <Upload size={30} />
               </div>
-              <h3 className="mt-4 text-2xl font-black text-slate-950">Arrastra o selecciona el PDF de inventario</h3>
-              <p className="mt-2 text-slate-500">{selectedFile ? selectedFile.name : 'El parser usa pdfjs-dist y lee el contenido real del PDF.'}</p>
+              <h3 className="mt-4 text-2xl font-black text-slate-50">Arrastra o selecciona el PDF de inventario</h3>
+              <p className="mt-2 break-words text-slate-300">{selectedFile ? selectedFile.name : 'El parser usa pdfjs-dist y lee el contenido real del PDF.'}</p>
               <span className="mt-5 inline-flex min-h-14 items-center rounded-lg bg-blue-600 px-6 text-base font-black text-white shadow-sm">
                 Seleccionar archivo PDF
               </span>
@@ -81,10 +81,10 @@ export default function UploadInventoryPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-xl font-black text-slate-950">Datos detectados</h3>
+        <section className="rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:p-5">
+          <h3 className="text-xl font-black text-slate-50">Datos detectados</h3>
           {!parsedInventory && !loading && (
-            <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">
+            <p className="mt-4 rounded-lg bg-white/5 p-4 text-sm font-bold text-slate-300">
               Aun no hay PDF cargado. Los datos apareceran despues de leer el archivo.
             </p>
           )}
@@ -99,9 +99,9 @@ export default function UploadInventoryPage() {
                 ['Categorias', parsedInventory.categories.length],
                 ['Productos', parsedInventory.categories.flatMap((category) => category.products).length],
               ].map(([label, value]) => (
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3" key={label}>
-                  <span className="font-bold text-slate-500">{label}</span>
-                  <strong className="text-right text-slate-950">{value}</strong>
+                <div className="flex items-center justify-between gap-4 rounded-lg bg-white/5 px-4 py-3 ring-1 ring-white/10" key={label}>
+                  <span className="font-bold text-slate-400">{label}</span>
+                  <strong className="break-words text-right text-slate-50">{value}</strong>
                 </div>
               ))}
             </div>
@@ -109,10 +109,10 @@ export default function UploadInventoryPage() {
         </section>
       </div>
 
-      <section className="mt-6 rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-5">
-          <h3 className="text-2xl font-black text-slate-950">Previsualizacion del inventario importado</h3>
-          <p className="mt-1 text-slate-500">Categorias y productos se guardaran con el orden detectado en el PDF.</p>
+      <section className="mt-6 rounded-xl border border-white/10 bg-slate-900/80 shadow-xl shadow-black/15">
+        <div className="border-b border-white/10 p-5">
+          <h3 className="text-2xl font-black text-slate-50">Previsualizacion del inventario importado</h3>
+          <p className="mt-1 text-slate-300">Categorias y productos se guardaran con el orden detectado en el PDF.</p>
         </div>
         {!parsedInventory ? (
           <EmptyState
@@ -121,13 +121,13 @@ export default function UploadInventoryPage() {
             title="Sin previsualizacion"
           />
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-white/10">
             {parsedInventory.categories.map((category) => (
               <div className="p-5" key={category.id}>
-                <div className="rounded-lg bg-slate-950 px-4 py-3 text-lg font-black text-white">{category.name}</div>
-                <div className="mt-3 overflow-x-auto">
+                <div className="rounded-lg bg-slate-950 px-4 py-3 text-lg font-black text-white ring-1 ring-white/10">{category.name}</div>
+                <div className="touch-scroll mt-3 overflow-x-auto">
                   <table className="w-full min-w-[860px] text-left text-sm">
-                    <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                    <thead className="bg-slate-950 text-xs uppercase tracking-wider text-slate-400">
                       <tr>
                         <th className="px-4 py-3">Producto</th>
                         <th className="px-4 py-3">Stock PDF</th>
@@ -137,10 +137,10 @@ export default function UploadInventoryPage() {
                         <th className="px-4 py-3">Observacion</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-white/10">
                       {category.products.map((product) => (
-                        <tr key={product.id}>
-                          <td className="px-4 py-4 font-black text-slate-900">{product.name}</td>
+                        <tr className="text-slate-300" key={product.id}>
+                          <td className="px-4 py-4 font-black text-slate-50">{product.name}</td>
                           <td className="px-4 py-4">{formatNumber(product.stock)}</td>
                           <td className="px-4 py-4">{formatNumber(product.noDisponible)}</td>
                           <td className="px-4 py-4 text-slate-400">Pendiente</td>

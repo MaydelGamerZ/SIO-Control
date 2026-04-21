@@ -67,7 +67,7 @@ function InventorySummary({ inventory }) {
         eyebrow="Inventario actual"
         title="Inventario del dia"
       >
-        {formatDisplayDate(inventory.dateKey)} · {inventory.semana || 'Semana sin definir'} · {inventory.cedis} · Ultima actualizacion {formatTime(updatedAt)}
+        {formatDisplayDate(inventory.dateKey)} - {inventory.semana || 'Semana sin definir'} - {inventory.cedis} - Ultima actualizacion {formatTime(updatedAt)}
       </PageTitle>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
@@ -80,33 +80,33 @@ function InventorySummary({ inventory }) {
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-xl border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-black/15">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-2xl font-black text-slate-950">Progreso de revision</h3>
-              <p className="mt-1 text-slate-500">
+              <h3 className="text-2xl font-black text-slate-50">Progreso de revision</h3>
+              <p className="mt-1 text-slate-300">
                 {inventory.reviewedCategories} categorias revisadas, {inventory.totalCategories - inventory.reviewedCategories} pendientes
               </p>
             </div>
             <div className="text-right">
-              <div className="text-4xl font-black text-blue-600">{inventory.progress}%</div>
+              <div className="text-4xl font-black text-blue-300">{inventory.progress}%</div>
               <div className="text-sm font-bold text-slate-400">avance general</div>
             </div>
           </div>
-          <div className="mt-5 h-4 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-blue-600" style={{ width: `${inventory.progress}%` }} />
+          <div className="mt-5 h-4 overflow-hidden rounded-full bg-slate-950">
+            <div className="h-full rounded-full bg-blue-500" style={{ width: `${inventory.progress}%` }} />
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-2">
             {inventory.categories.map((category) => {
               const progress = getCategoryProgress(category)
               return (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4" key={category.id}>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4" key={category.id}>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-black text-slate-900">{category.name}</div>
-                    <span className="text-sm font-black text-slate-500">{progress}%</span>
+                    <div className="break-words font-black text-slate-100">{category.name}</div>
+                    <span className="text-sm font-black text-slate-400">{progress}%</span>
                   </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white ring-1 ring-slate-200">
-                    <div className="h-full rounded-full bg-slate-900" style={{ width: `${progress}%` }} />
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950 ring-1 ring-white/10">
+                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} />
                   </div>
                 </div>
               )
@@ -114,8 +114,8 @@ function InventorySummary({ inventory }) {
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-2xl font-black text-slate-950">Actividad reciente</h3>
+        <section className="rounded-xl border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-black/15">
+          <h3 className="text-2xl font-black text-slate-50">Actividad reciente</h3>
           <div className="mt-5 space-y-4">
             {[
               ['Inventario cargado', inventory.createdAt?.toDate ? formatTime(inventory.createdAt.toDate()) : '--:--'],
@@ -124,11 +124,11 @@ function InventorySummary({ inventory }) {
               ['Ultimo guardado', inventory.updatedBy?.name || 'Sistema'],
             ].map(([label, value]) => (
               <div className="flex gap-3" key={label}>
-                <div className="grid h-11 w-11 flex-none place-items-center rounded-lg bg-blue-50 text-blue-700">
+                <div className="grid h-11 w-11 flex-none place-items-center rounded-lg bg-blue-500/10 text-blue-200 ring-1 ring-blue-300/15">
                   <Clock3 size={20} />
                 </div>
                 <div>
-                  <div className="font-black text-slate-900">{label}</div>
+                  <div className="font-black text-slate-100">{label}</div>
                   <div className="text-sm font-semibold text-slate-400">{value}</div>
                 </div>
               </div>
