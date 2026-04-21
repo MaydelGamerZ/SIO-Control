@@ -3,6 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BadgeCheck, BarChart3, ClipboardCheck, FileText, GitCompare, RotateCcw } from 'lucide-react'
 import { Badge, Button, ErrorState, Kpi, LoadingState, Metric, PageTitle } from '../components/ui'
 import { getInventory } from '../services/inventoryService'
+import { useAuth } from '../hooks/useAuth'
+import { useUserProfile } from '../hooks/useUserProfile'
+import { canAuditUser } from '../services/userService'
 import { formatDisplayDate, formatNumber, formatTime, getProductStatus } from '../utils/inventory'
 
 export default function InventoryDetailPage() {
@@ -11,6 +14,9 @@ export default function InventoryDetailPage() {
   const [loading, setLoading] = useState(true)
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const { profile } = useUserProfile()
+  const canAudit = canAuditUser(user, profile)
 
   useEffect(() => {
     let active = true
@@ -42,7 +48,7 @@ export default function InventoryDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => navigate('/inventario/historial')} tone="light"><RotateCcw className="mr-2 inline" size={18} />Volver al historial</Button>
             <Button onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="dark">Editar conteo</Button>
-            <Button onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="blue"><GitCompare className="mr-2 inline" size={18} />Comparar</Button>
+            {canAudit && <Button onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="blue"><GitCompare className="mr-2 inline" size={18} />Comparar</Button>}
           </div>
         }
         eyebrow="Detalle auditado"
@@ -67,7 +73,7 @@ export default function InventoryDetailPage() {
         ) : (
           <CountAuditSection count={{ categories: inventory.categories }} title="Conteo registrado" />
         )}
-        {inventory.userCounts.length >= 2 && (
+        {canAudit && inventory.userCounts.length >= 2 && (
           <section className="rounded-xl border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-black/15">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -123,7 +129,7 @@ function CountAuditSection({ count, title }) {
                         {product.countEntries.map((entry) => (
                           <div className="grid gap-2 rounded-lg bg-slate-900 p-3 text-slate-300 ring-1 ring-white/10 md:grid-cols-[90px_1fr_100px_120px]" key={entry.id}>
                             <strong className="text-slate-50">+{formatNumber(entry.quantity)}</strong>
-                            <span>{entry.observation}{entry.comment ? ` - ${entry.comment}` : ''}</span>
+                            <span>{entry.observation || entry.condition || 'Buen estado'}{entry.comment ? ` - ${entry.comment}` : ''}{entry.updatedBy?.name ? ` - editado por ${entry.updatedBy.name}` : ''}</span>
                             <span className="text-slate-400">{formatTime(entry.createdAt)}</span>
                             <span className="break-all font-bold text-slate-100">{entry.userName}</span>
                           </div>

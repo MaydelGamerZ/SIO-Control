@@ -1,6 +1,7 @@
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
 import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
+import RoleRoute from './components/RoleRoute'
 import { AuthProvider } from './contexts/AuthContext'
 import AdminUsersPage from './pages/AdminUsersPage'
 import CountPage from './pages/CountPage'
@@ -25,12 +26,17 @@ const router = createBrowserRouter([
           { path: '/inventario/resumen', element: <SummaryPage /> },
           { path: '/inventario/cargar', element: <UploadInventoryPage /> },
           { path: '/inventario/conteo', element: <CountPage /> },
-          { path: '/inventario/comparar', element: <ComparisonPage /> },
           { path: '/inventario/historial', element: <HistoryPage /> },
           { path: '/inventario/:id', element: <InventoryDetailPage /> },
           { path: '/inventario/:id/editar', element: <CountPage /> },
-          { path: '/inventario/:id/comparar', element: <ComparisonPage /> },
-          { path: '/administracion/usuarios', element: <AdminUsersPage /> },
+          {
+            element: <RoleRoute />,
+            children: [
+              { path: '/inventario/comparar', element: <ComparisonPage /> },
+              { path: '/inventario/:id/comparar', element: <ComparisonPage /> },
+              { path: '/administracion/usuarios', element: <AdminUsersPage /> },
+            ],
+          },
         ],
       },
     ],

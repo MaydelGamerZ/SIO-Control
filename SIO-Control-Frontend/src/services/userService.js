@@ -12,10 +12,20 @@ import {
 import { db } from '../firebase'
 
 export const adminEmail = 'maydelgamerz90@gmail.com'
+export const userRoles = {
+  adminAuditor: 'admin_auditor',
+  auditor: 'auditor',
+  counter: 'contador',
+}
 const usersCollection = collection(db, 'users')
 
 export function isAdminUser(user) {
   return user?.email?.toLowerCase() === adminEmail
+}
+
+export function canAuditUser(user, profile) {
+  if (isAdminUser(user)) return true
+  return [userRoles.adminAuditor, userRoles.auditor, 'administrador'].includes(profile?.role)
 }
 
 export async function upsertUserProfile(user) {
@@ -23,7 +33,7 @@ export async function upsertUserProfile(user) {
 
   const snapshot = await getDoc(doc(db, 'users', user.uid))
   const existing = snapshot.exists() ? snapshot.data() : {}
-  const role = isAdminUser(user) ? 'administrador' : existing.role || 'auditor'
+  const role = isAdminUser(user) ? userRoles.adminAuditor : existing.role || userRoles.counter
   await setDoc(
     doc(db, 'users', user.uid),
     {

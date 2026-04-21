@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { Badge, Button, EmptyState, ErrorState, LoadingState, Metric } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
+import { useUserProfile } from '../hooks/useUserProfile'
 import {
   addCountEntry,
   deleteCountEntry,
@@ -13,6 +14,7 @@ import {
   updateInventoryStatus,
 } from '../services/inventoryService'
 import { filterProductRows, formatDateKey, formatNumber, formatTime, getCategoryProgress, getProductStatus, inventoryStatuses, observationOptions, productFilters } from '../utils/inventory'
+import { canAuditUser } from '../services/userService'
 
 async function resolveInventory(id, user) {
   if (id) return getInventoryForUser(id, user)
@@ -33,7 +35,9 @@ export default function CountPage() {
   const productsSectionRef = useRef(null)
   const { id } = useParams()
   const { user } = useAuth()
+  const { profile } = useUserProfile()
   const navigate = useNavigate()
+  const canAudit = canAuditUser(user, profile)
 
   async function refreshInventory(showLoading = false) {
     if (showLoading) setLoading(true)
@@ -217,7 +221,7 @@ export default function CountPage() {
           <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-3 xl:min-w-[620px]">
             <Button className="w-full" onClick={() => handleSave(inventoryStatuses.inProgress)} tone="blue">Guardar</Button>
             <Button className="w-full" onClick={() => handleSave(inventoryStatuses.saved)} tone="dark">Guardar y salir</Button>
-            <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light">Comparar conteos</Button>
+            {canAudit && <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light">Comparar conteos</Button>}
           </div>
         </div>
       </section>
@@ -249,7 +253,7 @@ export default function CountPage() {
         onSave={() => handleSave(inventoryStatuses.inProgress)}
         onSaveAndExit={() => handleSave(inventoryStatuses.saved)}
         onScrollToProducts={scrollToProducts}
-        onCompare={() => navigate(`/inventario/${inventory.id}/comparar`)}
+        onCompare={canAudit ? () => navigate(`/inventario/${inventory.id}/comparar`) : null}
         open={toolsOpen}
         search={search}
       />
@@ -630,7 +634,7 @@ function ToolsPanel({
               <Button className="w-full justify-start" onClick={onClearFilters} tone="light" disabled={filterId === 'global' && !search}>Limpiar filtros</Button>
               <Button className="w-full justify-start" onClick={() => onFilterChange('counted')} tone="light">Solo con movimientos</Button>
               <Button className="w-full justify-start" onClick={() => onFilterChange('pending')} tone="light">Solo sin contar</Button>
-              <Button className="w-full justify-start" onClick={onCompare} tone="light">Comparar conteos</Button>
+              {onCompare && <Button className="w-full justify-start" onClick={onCompare} tone="light">Comparar conteos</Button>}
             </div>
           </section>
         </div>
@@ -761,7 +765,9 @@ function ProductCard({ categoryId, categoryName, onAdd, onDelete, onEdit, produc
           {product.countEntries.map((entry) => (
             <div className="grid gap-3 rounded-lg bg-slate-900 p-3 ring-1 ring-white/10 sm:grid-cols-[90px_minmax(0,1fr)_80px_110px_72px] sm:items-center" key={entry.id}>
               <strong className="text-lg text-slate-50">+{formatNumber(entry.quantity)}</strong>
-              <span className="min-w-0 break-words font-bold text-slate-300">{entry.observation}{entry.comment ? ` - ${entry.comment}` : ''}</span>
+              <span className="min-w-0 break-words font-bold text-slate-300">
+                {entry.observation || entry.condition || 'Buen estado'}{entry.comment ? ` - ${entry.comment}` : ''}{entry.updatedBy?.name ? ` - editado por ${entry.updatedBy.name}` : ''}
+              </span>
               <span className="text-sm font-bold text-slate-400">{formatTime(entry.createdAt)}</span>
               <span className="min-w-0 break-all text-sm font-black text-slate-200">{entry.userName}</span>
               <span className="flex gap-2 text-slate-300">

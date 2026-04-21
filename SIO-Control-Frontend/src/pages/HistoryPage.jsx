@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { ArchiveRestore, Edit3, Eye, Filter, GitCompare } from 'lucide-react'
 import { Badge, Button, EmptyState, ErrorState, LoadingState, PageTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
+import { useUserProfile } from '../hooks/useUserProfile'
 import { listInventories, updateInventoryStatus } from '../services/inventoryService'
+import { canAuditUser } from '../services/userService'
 import { formatDisplayDate, formatNumber, inventoryStatuses } from '../utils/inventory'
 
 export default function HistoryPage() {
@@ -14,7 +16,9 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [textFilter, setTextFilter] = useState('')
   const { user } = useAuth()
+  const { profile } = useUserProfile()
   const navigate = useNavigate()
+  const canAudit = canAuditUser(user, profile)
 
   async function refreshInventories() {
     setLoading(true)
@@ -97,6 +101,7 @@ export default function HistoryPage() {
                   <div className="break-words text-2xl font-black text-slate-50">{formatDisplayDate(inventory.dateKey)}</div>
                   <div className="mt-1 text-sm font-bold uppercase tracking-[0.12em] text-slate-500">{inventory.cedis}</div>
                   <div className="mt-1 text-sm font-bold text-slate-400">{inventory.semana || 'Sin semana'}</div>
+                  <div className="mt-2 text-sm font-bold text-slate-500">Auditor: {inventory.updatedBy?.name || inventory.createdBy?.name || 'Pendiente'}</div>
                 </div>
                 <div className="min-w-0">
                   <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Usuarios participantes</div>
@@ -126,7 +131,7 @@ export default function HistoryPage() {
               <div className="grid gap-2 border-t border-white/10 pt-4 sm:grid-cols-2 xl:grid-cols-5">
                 <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}`)} tone="light"><Eye size={16} />Ver detalle</Button>
                 <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="light"><Edit3 size={16} />Editar</Button>
-                <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light"><GitCompare size={16} />Comparar</Button>
+                {canAudit && <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light"><GitCompare size={16} />Comparar</Button>}
                 <Button className="w-full" onClick={() => reopenInventory(inventory.id)} tone="light"><ArchiveRestore size={16} />Reabrir</Button>
                 <Button className="w-full" onClick={() => window.print()} tone="light">Exportar</Button>
               </div>

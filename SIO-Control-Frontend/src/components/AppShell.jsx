@@ -19,14 +19,14 @@ import {
   X,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-
-const adminEmail = 'maydelgamerz90@gmail.com'
+import { useUserProfile } from '../hooks/useUserProfile'
+import { canAuditUser } from '../services/userService'
 
 const inventoryItems = [
   { to: '/inventario/resumen', label: 'Resumen del dia', icon: BarChart3 },
   { to: '/inventario/cargar', label: 'Cargar inventario', icon: Upload },
   { to: '/inventario/conteo', label: 'Conteo en proceso', icon: ClipboardCheck },
-  { to: '/inventario/comparar', label: 'Comparar conteos', icon: GitCompare },
+  { to: '/inventario/comparar', label: 'Comparar conteos', icon: GitCompare, auditOnly: true },
   { to: '/inventario/historial', label: 'Historial', icon: History },
 ]
 
@@ -37,10 +37,6 @@ const mainItems = [
 const adminItems = [
   { to: '/administracion/usuarios', label: 'Usuarios', icon: Users },
 ]
-
-function isAdmin(user) {
-  return user?.email?.toLowerCase() === adminEmail
-}
 
 function SidebarTooltip({ children, visible }) {
   if (!visible) return null
@@ -86,9 +82,11 @@ export default function AppShell() {
   const [adminOpen, setAdminOpen] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { logout, user } = useAuth()
+  const { profile } = useUserProfile()
   const navigate = useNavigate()
   const location = useLocation()
   const userLabel = user?.displayName || user?.email || 'Usuario'
+  const canAudit = canAuditUser(user, profile)
   const inventoryDetailActive = /^\/inventario\/(?!resumen$|cargar$|conteo$|comparar$|historial$)[^/]+(?:\/editar|\/comparar)?$/.test(location.pathname)
 
   async function handleLogout() {
@@ -184,7 +182,7 @@ export default function AppShell() {
 
               {(inventoryOpen || sidebarCollapsed) && (
                 <div className={`space-y-1 ${sidebarCollapsed ? '' : 'pl-2'}`}>
-                  {inventoryItems.map((item) => (
+                  {inventoryItems.filter((item) => !item.auditOnly || canAudit).map((item) => (
                     <NavItem
                       collapsed={sidebarCollapsed}
                       exactActive={item.to.includes('historial') && inventoryDetailActive}
@@ -196,7 +194,7 @@ export default function AppShell() {
                 </div>
               )}
 
-              {isAdmin(user) && (
+              {canAudit && (
                 <>
                   <button
                     className={`group relative mt-4 flex min-h-12 w-full items-center rounded-xl bg-white/5 text-sm font-black text-white ring-1 ring-white/10 transition hover:bg-white/10 ${
