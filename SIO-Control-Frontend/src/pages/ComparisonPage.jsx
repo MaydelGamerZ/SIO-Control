@@ -13,7 +13,7 @@ import {
   setComparisonProductVerification,
   updateUserCountEntry,
 } from '../services/inventoryService'
-import { flattenProducts, formatDateKey, formatDisplayDate, formatNumber, formatTime } from '../utils/inventory'
+import { flattenProducts, formatDateKey, formatDisplayDate, formatNumber, formatTime, observationOptions } from '../utils/inventory'
 
 const comparisonFilters = [
   { id: 'all', label: 'Ver todos' },
@@ -165,15 +165,10 @@ export default function ComparisonPage() {
     setSearch('')
   }
 
-  async function addEntry(userCountId, row, label) {
-    const quantity = window.prompt(`Cantidad para ${label}`, '0')
-    if (quantity === null) return
-    const observation = window.prompt('Condicion / observacion', 'Buen estado') || 'Buen estado'
-    const comment = window.prompt('Comentario', '') || ''
-
+  async function addEntry(userCountId, row, values) {
     setSaving(true)
     try {
-      await addUserCountEntry(inventory.id, userCountId, row.categoryId, row.productId, { quantity, observation, comment }, user)
+      await addUserCountEntry(inventory.id, userCountId, row.categoryId, row.productId, values, user)
       await refresh()
     } catch (saveError) {
       setError(saveError.message)
@@ -182,15 +177,10 @@ export default function ComparisonPage() {
     }
   }
 
-  async function editEntry(userCountId, row, entry) {
-    const quantity = window.prompt('Nueva cantidad', String(entry.quantity ?? 0))
-    if (quantity === null) return
-    const observation = window.prompt('Condicion / observacion', entry.observation || entry.condition || 'Buen estado') || entry.observation || 'Buen estado'
-    const comment = window.prompt('Comentario', entry.comment || '') || ''
-
+  async function editEntry(userCountId, row, entry, values) {
     setSaving(true)
     try {
-      await updateUserCountEntry(inventory.id, userCountId, row.categoryId, row.productId, entry.id, { quantity, observation, condition: observation, comment }, user)
+      await updateUserCountEntry(inventory.id, userCountId, row.categoryId, row.productId, entry.id, values, user)
       await refresh()
     } catch (saveError) {
       setError(saveError.message)
@@ -200,7 +190,6 @@ export default function ComparisonPage() {
   }
 
   async function deleteEntry(userCountId, row, entryId) {
-    if (!window.confirm('Eliminar este registro del historial?')) return
     setSaving(true)
     try {
       await deleteUserCountEntry(inventory.id, userCountId, row.categoryId, row.productId, entryId, user)
@@ -628,18 +617,18 @@ function ComparisonProductCard({ countA, countB, disabled, onAddEntry, onDeleteE
           count={countA}
           disabled={disabled}
           label="Historial Usuario A"
-          onAdd={() => onAddEntry(countA.id, row, 'Usuario A')}
+          onAdd={(values) => onAddEntry(countA.id, row, values)}
           onDelete={(entryId) => onDeleteEntry(countA.id, row, entryId)}
-          onEdit={(entry) => onEditEntry(countA.id, row, entry)}
+          onEdit={(entry, values) => onEditEntry(countA.id, row, entry, values)}
           product={row.product}
         />
         <HistoryPanel
           count={countB}
           disabled={disabled}
           label="Historial Usuario B"
-          onAdd={() => onAddEntry(countB.id, row, 'Usuario B')}
+          onAdd={(values) => onAddEntry(countB.id, row, values)}
           onDelete={(entryId) => onDeleteEntry(countB.id, row, entryId)}
-          onEdit={(entry) => onEditEntry(countB.id, row, entry)}
+          onEdit={(entry, values) => onEditEntry(countB.id, row, entry, values)}
           product={row.productB}
         />
       </div>
@@ -668,6 +657,9 @@ function MiniMetric({ label, tone = 'slate', value }) {
 }
 
 function HistoryPanel({ count, disabled, label, onAdd, onDelete, onEdit, product }) {
+  const [adding, setAdding] = useState(false)
+  const [deletingEntryId, setDeletingEntryId] = useState('')
+  const [editingEntryId, setEditingEntryId] = useState('')
   const entries = product?.countEntries || []
   return (
     <section className="rounded-xl border border-white/10 bg-slate-950/45 p-4">
@@ -676,26 +668,162 @@ function HistoryPanel({ count, disabled, label, onAdd, onDelete, onEdit, product
           <h4 className="font-black text-slate-50">{label}</h4>
           <p className="mt-1 text-sm font-bold text-slate-500">{count?.userName} - {entries.length} movimientos</p>
         </div>
-        <Button disabled={disabled} onClick={onAdd} tone="light"><Plus size={17} />Agregar</Button>
+        <Button disabled={disabled || adding} onClick={() => setAdding(true)} tone="light"><Plus size={17} />Agregar</Button>
       </div>
 
       <div className="grid gap-2">
+        {adding && (
+          <EntryInlineForm
+            disabled={disabled}
+            onCancel={() => setAdding(false)}
+            onSubmit={async (values) => {
+              await onAdd(values)
+              setAdding(false)
+            }}
+            submitLabel="Agregar conteo"
+          />
+        )}
         {entries.length === 0 && <div className="rounded-lg bg-white/5 p-4 text-sm font-bold text-slate-400">Sin registros capturados.</div>}
         {entries.map((entry) => (
-          <div className="grid gap-3 rounded-lg bg-slate-900 p-3 ring-1 ring-white/10 md:grid-cols-[86px_minmax(0,1fr)_86px_88px] md:items-center" key={entry.id}>
-            <strong className="font-mono text-lg text-slate-50 tabular-nums">+{formatNumber(entry.quantity)}</strong>
-            <div className="min-w-0">
-              <div className="break-words font-bold text-slate-200">{entry.observation || entry.condition || 'Buen estado'}</div>
-              <div className="break-words text-sm text-slate-500">{entry.comment || 'Sin observacion'}{entry.updatedBy?.name ? ` - Editado por ${entry.updatedBy.name}` : ''}</div>
-            </div>
-            <span className="text-sm font-black text-slate-400">{formatTime(entry.updatedAt || entry.createdAt)}</span>
-            <span className="flex gap-2">
-              <button className="grid h-10 w-10 place-items-center rounded-lg bg-white/10 text-slate-100 hover:bg-white/15 disabled:opacity-50" disabled={disabled} onClick={() => onEdit(entry)} type="button" aria-label="Editar registro"><Edit3 size={17} /></button>
-              <button className="grid h-10 w-10 place-items-center rounded-lg bg-rose-500/10 text-rose-100 hover:bg-rose-500/20 disabled:opacity-50" disabled={disabled} onClick={() => onDelete(entry.id)} type="button" aria-label="Eliminar registro"><Trash2 size={17} /></button>
-            </span>
+          <div className="rounded-lg bg-slate-900 p-3 ring-1 ring-white/10" key={entry.id}>
+            {editingEntryId === entry.id ? (
+              <EntryInlineForm
+                disabled={disabled}
+                initialValues={entry}
+                onCancel={() => setEditingEntryId('')}
+                onSubmit={async (values) => {
+                  await onEdit(entry, values)
+                  setEditingEntryId('')
+                }}
+                submitLabel="Guardar cambios"
+              />
+            ) : (
+              <div className="grid gap-3 md:grid-cols-[86px_minmax(0,1fr)_86px_88px] md:items-center">
+                <strong className="font-mono text-lg text-slate-50 tabular-nums">+{formatNumber(entry.quantity)}</strong>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="break-words font-bold text-slate-200">{entry.observation || entry.condition || 'Buen estado'}</span>
+                    {entry.updatedBy?.name && <Badge tone="blue">Editado</Badge>}
+                  </div>
+                  <div className="break-words text-sm text-slate-500">
+                    {entry.comment || 'Sin observacion'}{entry.updatedBy?.name ? ` - Modificado por ${entry.updatedBy.name}` : ''}
+                  </div>
+                </div>
+                <span className="text-sm font-black text-slate-400">{formatTime(entry.updatedAt || entry.createdAt)}</span>
+                <span className="flex gap-2">
+                  <button
+                    aria-label="Editar registro"
+                    className="grid h-10 w-10 place-items-center rounded-lg bg-white/10 text-slate-100 hover:bg-white/15 disabled:opacity-50"
+                    disabled={disabled}
+                    onClick={() => {
+                      setDeletingEntryId('')
+                      setEditingEntryId(entry.id)
+                    }}
+                    type="button"
+                  >
+                    <Edit3 size={17} />
+                  </button>
+                  <button
+                    aria-label="Eliminar registro"
+                    className="grid h-10 w-10 place-items-center rounded-lg bg-rose-500/10 text-rose-100 hover:bg-rose-500/20 disabled:opacity-50"
+                    disabled={disabled}
+                    onClick={() => {
+                      setEditingEntryId('')
+                      setDeletingEntryId(entry.id)
+                    }}
+                    type="button"
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                </span>
+              </div>
+            )}
+            {deletingEntryId === entry.id && editingEntryId !== entry.id && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-300/20 bg-rose-500/10 p-3">
+                <span className="text-sm font-bold text-rose-100">Eliminar este movimiento del historial?</span>
+                <div className="flex gap-2">
+                  <Button disabled={disabled} onClick={() => setDeletingEntryId('')} tone="light">Cancelar</Button>
+                  <Button
+                    disabled={disabled}
+                    onClick={async () => {
+                      await onDelete(entry.id)
+                      setDeletingEntryId('')
+                    }}
+                    tone="danger"
+                  >
+                    Eliminar
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
     </section>
+  )
+}
+
+function EntryInlineForm({ disabled, initialValues = {}, onCancel, onSubmit, submitLabel }) {
+  const [comment, setComment] = useState(initialValues.comment || '')
+  const [localError, setLocalError] = useState('')
+  const [observation, setObservation] = useState(initialValues.observation || initialValues.condition || 'Buen estado')
+  const [quantity, setQuantity] = useState(initialValues.quantity ? String(initialValues.quantity) : '')
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    const numericQuantity = Number(quantity)
+    if (!Number.isFinite(numericQuantity) || numericQuantity <= 0) {
+      setLocalError('Ingresa una cantidad mayor a cero.')
+      return
+    }
+
+    setLocalError('')
+    await onSubmit({
+      comment: comment.trim(),
+      condition: observation,
+      observation,
+      quantity: numericQuantity,
+    })
+  }
+
+  return (
+    <form className="rounded-lg border border-blue-300/20 bg-blue-500/10 p-3" onSubmit={handleSubmit}>
+      <div className="grid gap-3 lg:grid-cols-[120px_160px_minmax(0,1fr)_auto_auto] lg:items-start">
+        <label className="min-w-0">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Cantidad</span>
+          <input
+            className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/80 px-3 font-black text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400"
+            inputMode="decimal"
+            min="0"
+            onChange={(event) => setQuantity(event.target.value)}
+            placeholder="0"
+            type="number"
+            value={quantity}
+          />
+        </label>
+        <label className="min-w-0">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Condicion</span>
+          <select
+            className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/80 px-3 font-bold text-slate-50 outline-none focus:border-blue-400"
+            onChange={(event) => setObservation(event.target.value)}
+            value={observation}
+          >
+            {observationOptions.map((option) => <option key={option}>{option}</option>)}
+          </select>
+        </label>
+        <label className="min-w-0">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Observacion</span>
+          <input
+            className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/80 px-3 font-semibold text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400"
+            onChange={(event) => setComment(event.target.value)}
+            placeholder="Sin observacion"
+            value={comment}
+          />
+        </label>
+        <Button className="lg:mt-5" disabled={disabled} tone="blue" type="submit"><CheckCircle2 size={17} />{submitLabel}</Button>
+        <Button className="lg:mt-5" disabled={disabled} onClick={onCancel} tone="light"><X size={17} />Cancelar</Button>
+      </div>
+      {localError && <div className="mt-2 rounded-md border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-sm font-bold text-rose-100">{localError}</div>}
+    </form>
   )
 }

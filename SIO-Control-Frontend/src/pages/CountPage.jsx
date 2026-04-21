@@ -122,13 +122,9 @@ export default function CountPage() {
     }
   }
 
-  async function handleEdit(categoryId, productId, entry) {
-    const quantity = window.prompt('Nueva cantidad', entry.quantity)
-    if (quantity === null) return
-    const observation = window.prompt('Observacion', entry.observation) || entry.observation
-    const comment = window.prompt('Comentario', entry.comment || '') || ''
+  async function handleEdit(categoryId, productId, entry, values) {
     try {
-      await updateCountEntry(inventory.id, categoryId, productId, entry.id, { comment, observation, quantity: Number(quantity) }, user)
+      await updateCountEntry(inventory.id, categoryId, productId, entry.id, values, user)
       await refreshInventory()
     } catch (saveError) {
       setError(saveError.message)
@@ -136,7 +132,6 @@ export default function CountPage() {
   }
 
   async function handleDelete(categoryId, productId, entryId) {
-    if (!window.confirm('Eliminar este registro de conteo?')) return
     try {
       await deleteCountEntry(inventory.id, categoryId, productId, entryId, user)
       await refreshInventory()
@@ -629,6 +624,8 @@ function ProductCompactRow({ categoryId, categoryName, onAdd, product, showCateg
 
 function ProductCard({ categoryId, categoryName, onAdd, onDelete, onEdit, product, showCategory }) {
   const [comment, setComment] = useState('')
+  const [deletingEntryId, setDeletingEntryId] = useState('')
+  const [editingEntryId, setEditingEntryId] = useState('')
   const [observation, setObservation] = useState('Buen estado')
   const [quantity, setQuantity] = useState('')
   const status = getProductStatus(product)
@@ -697,21 +694,137 @@ function ProductCard({ categoryId, categoryName, onAdd, onDelete, onEdit, produc
         <div className="grid gap-2 border-t border-white/10 p-3 sm:p-4">
           {product.countEntries.length === 0 && <div className="rounded-lg bg-white/5 p-4 text-sm font-bold text-slate-400">Sin conteos capturados todavia</div>}
           {product.countEntries.map((entry) => (
-            <div className="grid gap-3 rounded-lg bg-slate-900 p-3 ring-1 ring-white/10 sm:grid-cols-[90px_minmax(0,1fr)_80px_110px_72px] sm:items-center" key={entry.id}>
-              <strong className="text-lg text-slate-50">+{formatNumber(entry.quantity)}</strong>
-              <span className="min-w-0 break-words font-bold text-slate-300">
-                {entry.observation || entry.condition || 'Buen estado'}{entry.comment ? ` - ${entry.comment}` : ''}{entry.updatedBy?.name ? ` - editado por ${entry.updatedBy.name}` : ''}
-              </span>
-              <span className="text-sm font-bold text-slate-400">{formatTime(entry.createdAt)}</span>
-              <span className="min-w-0 break-all text-sm font-black text-slate-200">{entry.userName}</span>
-              <span className="flex gap-2 text-slate-300">
-                <button className="grid h-10 w-10 place-items-center rounded-lg bg-white/10 hover:bg-white/15" onClick={() => onEdit(categoryId, product.id, entry)} type="button" aria-label="Editar registro"><Edit3 size={18} /></button>
-                <button className="grid h-10 w-10 place-items-center rounded-lg bg-rose-500/10 text-rose-100 hover:bg-rose-500/20" onClick={() => onDelete(categoryId, product.id, entry.id)} type="button" aria-label="Eliminar registro"><Trash2 size={18} /></button>
-              </span>
+            <div className="rounded-lg bg-slate-900 p-3 ring-1 ring-white/10" key={entry.id}>
+              {editingEntryId === entry.id ? (
+                <CountEntryInlineForm
+                  initialValues={entry}
+                  onCancel={() => setEditingEntryId('')}
+                  onSubmit={async (values) => {
+                    await onEdit(categoryId, product.id, entry, values)
+                    setEditingEntryId('')
+                  }}
+                />
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-[90px_minmax(0,1fr)_80px_110px_72px] sm:items-center">
+                  <strong className="text-lg text-slate-50">+{formatNumber(entry.quantity)}</strong>
+                  <span className="min-w-0 break-words font-bold text-slate-300">
+                    {entry.observation || entry.condition || 'Buen estado'}{entry.comment ? ` - ${entry.comment}` : ''}{entry.updatedBy?.name ? ` - modificado por ${entry.updatedBy.name}` : ''}
+                    {entry.updatedBy?.name && <Badge tone="blue">Editado</Badge>}
+                  </span>
+                  <span className="text-sm font-bold text-slate-400">{formatTime(entry.updatedAt || entry.createdAt)}</span>
+                  <span className="min-w-0 break-all text-sm font-black text-slate-200">{entry.userName}</span>
+                  <span className="flex gap-2 text-slate-300">
+                    <button
+                      className="grid h-10 w-10 place-items-center rounded-lg bg-white/10 hover:bg-white/15"
+                      onClick={() => {
+                        setDeletingEntryId('')
+                        setEditingEntryId(entry.id)
+                      }}
+                      type="button"
+                      aria-label="Editar registro"
+                    >
+                      <Edit3 size={18} />
+                    </button>
+                    <button
+                      className="grid h-10 w-10 place-items-center rounded-lg bg-rose-500/10 text-rose-100 hover:bg-rose-500/20"
+                      onClick={() => {
+                        setEditingEntryId('')
+                        setDeletingEntryId(entry.id)
+                      }}
+                      type="button"
+                      aria-label="Eliminar registro"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </span>
+                </div>
+              )}
+              {deletingEntryId === entry.id && editingEntryId !== entry.id && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-300/20 bg-rose-500/10 p-3">
+                  <span className="text-sm font-bold text-rose-100">Eliminar este registro de conteo?</span>
+                  <div className="flex gap-2">
+                    <Button onClick={() => setDeletingEntryId('')} tone="light">Cancelar</Button>
+                    <Button
+                      onClick={async () => {
+                        await onDelete(categoryId, product.id, entry.id)
+                        setDeletingEntryId('')
+                      }}
+                      tone="danger"
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
       </details>
     </article>
+  )
+}
+
+function CountEntryInlineForm({ initialValues, onCancel, onSubmit }) {
+  const [comment, setComment] = useState(initialValues.comment || '')
+  const [localError, setLocalError] = useState('')
+  const [observation, setObservation] = useState(initialValues.observation || initialValues.condition || 'Buen estado')
+  const [quantity, setQuantity] = useState(initialValues.quantity ? String(initialValues.quantity) : '')
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    const numericQuantity = Number(quantity)
+    if (!Number.isFinite(numericQuantity) || numericQuantity <= 0) {
+      setLocalError('Ingresa una cantidad mayor a cero.')
+      return
+    }
+
+    setLocalError('')
+    await onSubmit({
+      comment: comment.trim(),
+      condition: observation,
+      observation,
+      quantity: numericQuantity,
+    })
+  }
+
+  return (
+    <form className="rounded-lg border border-blue-300/20 bg-blue-500/10 p-3" onSubmit={handleSubmit}>
+      <div className="grid gap-3 lg:grid-cols-[120px_170px_minmax(0,1fr)_auto_auto] lg:items-start">
+        <label className="min-w-0">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Cantidad</span>
+          <input
+            className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/80 px-3 font-black text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400"
+            inputMode="decimal"
+            min="0"
+            onChange={(event) => setQuantity(event.target.value)}
+            placeholder="0"
+            type="number"
+            value={quantity}
+          />
+        </label>
+        <label className="min-w-0">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Condicion</span>
+          <select
+            className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/80 px-3 font-bold text-slate-50 outline-none focus:border-blue-400"
+            onChange={(event) => setObservation(event.target.value)}
+            value={observation}
+          >
+            {observationOptions.map((option) => <option key={option}>{option}</option>)}
+          </select>
+        </label>
+        <label className="min-w-0">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Observacion</span>
+          <input
+            className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/80 px-3 font-semibold text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400"
+            onChange={(event) => setComment(event.target.value)}
+            placeholder="Sin observacion"
+            value={comment}
+          />
+        </label>
+        <Button className="lg:mt-5" tone="blue" type="submit"><CheckCircle2 size={17} />Guardar</Button>
+        <Button className="lg:mt-5" onClick={onCancel} tone="light"><X size={17} />Cancelar</Button>
+      </div>
+      {localError && <div className="mt-2 rounded-md border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-sm font-bold text-rose-100">{localError}</div>}
+    </form>
   )
 }
