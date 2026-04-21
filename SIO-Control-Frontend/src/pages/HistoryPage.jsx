@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArchiveRestore, Edit3, Eye, Filter, GitCompare } from 'lucide-react'
-import { Badge, Button, EmptyState, ErrorState, LoadingState, Metric, PageTitle } from '../components/ui'
+import { Badge, Button, EmptyState, ErrorState, LoadingState, PageTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import { listInventories, updateInventoryStatus } from '../services/inventoryService'
 import { formatDisplayDate, formatNumber, inventoryStatuses } from '../utils/inventory'
@@ -91,11 +91,15 @@ export default function HistoryPage() {
       ) : (
         <section className="mt-5 grid gap-4">
           {filteredInventories.map((inventory) => (
-            <article className="rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:p-5" key={inventory.id}>
-              <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr_auto] xl:items-center">
-                <div>
-                  <div className="text-xl font-black text-slate-50">{formatDisplayDate(inventory.dateKey)}</div>
-                  <div className="mt-1 text-sm font-bold text-slate-400">{inventory.semana || 'Sin semana'} - {inventory.cedis}</div>
+            <article className="rounded-xl border border-white/10 bg-slate-900/85 p-4 shadow-xl shadow-black/15 sm:p-5" key={inventory.id}>
+              <header className="grid gap-4 border-b border-white/10 pb-4 lg:grid-cols-[minmax(260px,1fr)_minmax(320px,1.4fr)] lg:items-start">
+                <div className="min-w-0">
+                  <div className="break-words text-2xl font-black text-slate-50">{formatDisplayDate(inventory.dateKey)}</div>
+                  <div className="mt-1 text-sm font-bold uppercase tracking-[0.12em] text-slate-500">{inventory.cedis}</div>
+                  <div className="mt-1 text-sm font-bold text-slate-400">{inventory.semana || 'Sin semana'}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Usuarios participantes</div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(inventory.participants || []).length === 0 ? (
                       <Badge tone="amber">Sin conteos individuales</Badge>
@@ -109,30 +113,45 @@ export default function HistoryPage() {
                     {inventory.finalCount && <Badge tone="green">Conteo final validado</Badge>}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-                  <Metric label="Categorias" value={inventory.totalCategories} />
-                  <Metric label="Productos" value={inventory.totalProducts} />
-                  <Metric label="Contado" value={inventory.totalCounted} />
-                  <Metric label="Dif." value={inventory.difference} tone={inventory.difference === 0 ? 'green' : inventory.difference > 0 ? 'amber' : 'red'} />
-                  <div>
-                    <div className="text-xs font-black uppercase text-slate-400">Estado</div>
-                    <div className="mt-1 font-black">{inventory.status}</div>
-                    <div className="break-all text-sm text-slate-400">{inventory.createdBy?.name}</div>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => navigate(`/inventario/${inventory.id}`)} tone="light"><Eye className="mr-1 inline" size={16} />Ver detalle</Button>
-                  <Button onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="light"><Edit3 className="mr-1 inline" size={16} />Editar</Button>
-                  <Button onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light"><GitCompare className="mr-1 inline" size={16} />Comparar</Button>
-                  <Button onClick={() => reopenInventory(inventory.id)} tone="light"><ArchiveRestore className="mr-1 inline" size={16} />Reabrir</Button>
-                  <Button onClick={() => window.print()} tone="light">Exportar resumen</Button>
-                </div>
+              </header>
+
+              <div className="grid gap-3 py-4 sm:grid-cols-2 lg:grid-cols-5">
+                <HistoryKpi label="Categorias" value={inventory.totalCategories} />
+                <HistoryKpi label="Productos" value={inventory.totalProducts} />
+                <HistoryKpi label="Total contado" value={inventory.finalCount?.totalCounted ?? inventory.totalCounted} />
+                <HistoryKpi label="Diferencia" value={inventory.finalCount?.difference ?? inventory.difference} tone={(inventory.finalCount?.difference ?? inventory.difference) === 0 ? 'green' : (inventory.finalCount?.difference ?? inventory.difference) > 0 ? 'amber' : 'red'} />
+                <HistoryKpi label="Estado" value={inventory.status} text />
               </div>
-              <div className="mt-3 text-sm font-bold text-slate-400">Total contado: {formatNumber(inventory.totalCounted)} unidades</div>
+
+              <div className="grid gap-2 border-t border-white/10 pt-4 sm:grid-cols-2 xl:grid-cols-5">
+                <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}`)} tone="light"><Eye size={16} />Ver detalle</Button>
+                <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="light"><Edit3 size={16} />Editar</Button>
+                <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light"><GitCompare size={16} />Comparar</Button>
+                <Button className="w-full" onClick={() => reopenInventory(inventory.id)} tone="light"><ArchiveRestore size={16} />Reabrir</Button>
+                <Button className="w-full" onClick={() => window.print()} tone="light">Exportar</Button>
+              </div>
             </article>
           ))}
         </section>
       )}
     </>
+  )
+}
+
+function HistoryKpi({ label, text = false, tone = 'slate', value }) {
+  const tones = {
+    amber: 'text-amber-200',
+    green: 'text-emerald-200',
+    red: 'text-rose-200',
+    slate: 'text-slate-50',
+  }
+
+  return (
+    <div className="min-w-0 rounded-xl border border-white/10 bg-slate-950/45 p-4">
+      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
+      <div className={`mt-2 truncate text-xl font-black ${text ? 'text-base uppercase tracking-wide' : 'font-mono tabular-nums'} ${tones[tone]}`}>
+        {text ? value : formatNumber(value)}
+      </div>
+    </div>
   )
 }

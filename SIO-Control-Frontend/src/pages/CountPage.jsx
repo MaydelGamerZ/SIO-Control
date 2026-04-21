@@ -193,7 +193,7 @@ export default function CountPage() {
     <>
       <ErrorState message={error} />
 
-      <section className="mb-4 rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl shadow-black/20 lg:sticky lg:top-[calc(5rem_+_env(safe-area-inset-top))] lg:z-20 lg:mb-5 sm:p-5">
+      <section className="mb-4 rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl shadow-black/20 md:sticky md:top-[calc(5rem_+_env(safe-area-inset-top))] md:z-30 lg:mb-5 sm:p-5">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -254,7 +254,7 @@ export default function CountPage() {
         search={search}
       />
 
-      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 md:block">
+      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/90 p-4 shadow-xl shadow-black/15 backdrop-blur md:sticky md:top-[calc(15.5rem_+_env(safe-area-inset-top))] md:z-20 md:block">
         <div className="grid gap-3 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1fr)_auto_auto] xl:items-start">
           <SearchBox search={search} setSearch={setSearch} />
           <div>

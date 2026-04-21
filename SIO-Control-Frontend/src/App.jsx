@@ -2,6 +2,7 @@ import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
 import AppShell from './components/AppShell'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './contexts/AuthContext'
+import AdminUsersPage from './pages/AdminUsersPage'
 import CountPage from './pages/CountPage'
 import ComparisonPage from './pages/ComparisonPage'
 import HomePage from './pages/HomePage'
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
           { path: '/inventario/:id', element: <InventoryDetailPage /> },
           { path: '/inventario/:id/editar', element: <CountPage /> },
           { path: '/inventario/:id/comparar', element: <ComparisonPage /> },
+          { path: '/administracion/usuarios', element: <AdminUsersPage /> },
         ],
       },
     ],

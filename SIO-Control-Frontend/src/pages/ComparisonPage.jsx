@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BadgeCheck, CheckCircle2, Edit3, GitCompare, RotateCcw, ShieldCheck } from 'lucide-react'
-import { Badge, Button, EmptyState, ErrorState, LoadingState, Metric, PageTitle } from '../components/ui'
+import { Badge, Button, EmptyState, ErrorState, LoadingState, PageTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import { generateFinalCount, getInventory, getLatestInventory, getTodayInventory, setUserProductTotal, verifyComparisonProduct } from '../services/inventoryService'
 import { flattenProducts, formatDateKey, formatDisplayDate, formatNumber } from '../utils/inventory'
@@ -95,9 +95,11 @@ export default function ComparisonPage() {
   const differentRows = comparisonRows.filter((row) => row.difference !== 0).length
   const incompleteRows = comparisonRows.filter((row) => row.missingInfo).length
 
-  async function editTotal(userCountId, row, currentTotal) {
+  async function editTotal(userCountId, row, currentTotal, currentObservation = 'Ajuste comparacion') {
     const value = window.prompt('Nuevo total contado', String(currentTotal))
     if (value === null) return
+    const observation = window.prompt('Observacion', currentObservation || 'Ajuste comparacion') || currentObservation || 'Ajuste comparacion'
+    const comment = window.prompt('Comentario', '') || ''
     const numericValue = Number(value)
     if (!Number.isFinite(numericValue) || numericValue < 0) {
       setError('El total debe ser un numero valido mayor o igual a cero.')
@@ -106,7 +108,7 @@ export default function ComparisonPage() {
 
     setSaving(true)
     try {
-      await setUserProductTotal(inventory.id, userCountId, row.categoryId, row.productId, numericValue, user)
+      await setUserProductTotal(inventory.id, userCountId, row.categoryId, row.productId, numericValue, user, observation, comment)
       await refresh()
     } catch (saveError) {
       setError(saveError.message)
@@ -174,21 +176,31 @@ export default function ComparisonPage() {
       </PageTitle>
       <ErrorState message={error} />
 
-      <section className="grid gap-4 md:grid-cols-4">
-        <article className="rounded-xl border border-white/10 bg-slate-900/80 p-4">
-          <label className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Usuario A</label>
-          <select className="mt-2 min-h-12 w-full rounded-lg border border-white/10 bg-slate-950 px-3 font-bold text-slate-50" onChange={(event) => setCountAId(event.target.value)} value={countAId}>
+      <section className="grid gap-4 rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 lg:grid-cols-[minmax(240px,1fr)_280px_minmax(240px,1fr)] lg:items-center">
+        <article className="rounded-xl border border-blue-300/20 bg-blue-500/10 p-4">
+          <label className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">Usuario A</label>
+          <select className="mt-3 min-h-12 w-full rounded-lg border border-white/10 bg-slate-950 px-3 font-bold text-slate-50 outline-none focus:border-blue-400" onChange={(event) => setCountAId(event.target.value)} value={countAId}>
             {inventory.userCounts.map((count) => <option key={count.id} value={count.id}>{count.userName}</option>)}
           </select>
+          <div className="mt-3 text-sm font-bold text-slate-300">{countA?.totalCounted || 0} unidades capturadas</div>
         </article>
-        <article className="rounded-xl border border-white/10 bg-slate-900/80 p-4">
-          <label className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Usuario B</label>
-          <select className="mt-2 min-h-12 w-full rounded-lg border border-white/10 bg-slate-950 px-3 font-bold text-slate-50" onChange={(event) => setCountBId(event.target.value)} value={countBId}>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-emerald-300/15 bg-emerald-400/10 p-4 text-center">
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Coinciden</div>
+            <div className="mt-2 font-mono text-3xl font-black tabular-nums text-emerald-100">{matchingRows}</div>
+          </div>
+          <div className="rounded-xl border border-rose-300/15 bg-rose-500/10 p-4 text-center">
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-rose-200">Diferencias</div>
+            <div className="mt-2 font-mono text-3xl font-black tabular-nums text-rose-100">{differentRows + incompleteRows}</div>
+          </div>
+        </div>
+        <article className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-4">
+          <label className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">Usuario B</label>
+          <select className="mt-3 min-h-12 w-full rounded-lg border border-white/10 bg-slate-950 px-3 font-bold text-slate-50 outline-none focus:border-blue-400" onChange={(event) => setCountBId(event.target.value)} value={countBId}>
             {inventory.userCounts.map((count) => <option key={count.id} value={count.id}>{count.userName}</option>)}
           </select>
+          <div className="mt-3 text-sm font-bold text-slate-300">{countB?.totalCounted || 0} unidades capturadas</div>
         </article>
-        <Metric label="Coinciden" value={matchingRows} tone="green" />
-        <Metric label="Diferencias" value={differentRows + incompleteRows} tone={differentRows ? 'red' : 'amber'} />
       </section>
 
       {inventory.finalCount && (
@@ -198,27 +210,54 @@ export default function ComparisonPage() {
         </section>
       )}
 
-      <section className="mt-5 grid gap-3">
+      <section className="mt-5 grid gap-4">
         {comparisonRows.map((row) => {
           const stateTone = row.missingInfo ? 'amber' : row.difference === 0 || row.verified ? 'green' : 'red'
           const stateLabel = row.missingInfo ? 'Falta informacion' : row.difference === 0 ? 'Coincide' : row.verified ? 'Verificado' : 'No coincide'
+          const observationA = row.product.countEntries?.[0]?.observation || 'Sin observacion'
+          const observationB = row.productB?.countEntries?.[0]?.observation || 'Sin observacion'
 
           return (
-            <article className="rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15" key={row.productKey}>
-              <div className="grid gap-4 xl:grid-cols-[minmax(280px,1fr)_repeat(5,120px)_auto] xl:items-center">
+            <article className="rounded-xl border border-white/10 bg-slate-900/85 p-4 shadow-xl shadow-black/15 sm:p-5" key={row.productKey}>
+              <header className="mb-4 flex flex-col gap-3 border-b border-white/10 pb-4 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
-                  <Badge tone="blue">{row.categoryName}</Badge>
-                  <h3 className="mt-2 break-words text-lg font-black text-slate-50">{row.product.name}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="blue">{row.categoryName}</Badge>
+                    <Badge tone={stateTone}>{stateLabel}</Badge>
+                  </div>
+                  <h3 className="mt-3 break-words text-xl font-black leading-tight text-slate-50 sm:text-2xl">{row.product.name}</h3>
+                  <div className="mt-2 text-sm font-bold text-slate-400">Stock sistema: <span className="font-mono text-slate-100 tabular-nums">{formatNumber(row.product.stock)}</span></div>
                 </div>
-                <Metric label="Stock" value={row.product.stock} />
-                <Metric label={countA?.userName || 'Usuario A'} value={row.totalA} />
-                <Metric label={countB?.userName || 'Usuario B'} value={row.totalB} />
-                <Metric label="Dif. usuarios" value={row.difference} tone={stateTone} />
-                <Badge tone={stateTone}>{stateLabel}</Badge>
-                <div className="flex flex-wrap gap-2">
-                  <button className="grid h-10 w-10 place-items-center rounded-lg bg-white/10 text-slate-100" onClick={() => editTotal(countA.id, row, row.totalA)} type="button" aria-label="Editar usuario A"><Edit3 size={17} /></button>
-                  <button className="grid h-10 w-10 place-items-center rounded-lg bg-white/10 text-slate-100" onClick={() => editTotal(countB.id, row, row.totalB)} type="button" aria-label="Editar usuario B"><Edit3 size={17} /></button>
-                  <button className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-500/15 text-emerald-100" onClick={() => verifyRow(row)} type="button" aria-label="Marcar verificado"><CheckCircle2 size={17} /></button>
+                <Button className="w-full md:w-auto" onClick={() => verifyRow(row)} tone={row.verified ? 'blue' : 'light'}>
+                  <CheckCircle2 size={17} />Validar
+                </Button>
+              </header>
+
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
+                <ComparisonCountPanel
+                  label="Usuario A"
+                  observation={observationA}
+                  onEdit={() => editTotal(countA.id, row, row.totalA, observationA)}
+                  total={row.totalA}
+                  userName={countA?.userName || 'Usuario A'}
+                />
+                <ComparisonCountPanel
+                  label="Usuario B"
+                  observation={observationB}
+                  onEdit={() => editTotal(countB.id, row, row.totalB, observationB)}
+                  total={row.totalB}
+                  userName={countB?.userName || 'Usuario B'}
+                />
+                <div className={`rounded-xl border p-4 ${
+                  stateTone === 'green' ? 'border-emerald-300/20 bg-emerald-400/10' : stateTone === 'amber' ? 'border-amber-300/20 bg-amber-400/10' : 'border-rose-300/20 bg-rose-500/10'
+                }`}>
+                  <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Diferencia</div>
+                  <div className={`mt-3 font-mono text-3xl font-black tabular-nums ${
+                    stateTone === 'green' ? 'text-emerald-100' : stateTone === 'amber' ? 'text-amber-100' : 'text-rose-100'
+                  }`}>
+                    {formatNumber(row.difference)}
+                  </div>
+                  <div className="mt-2 text-sm font-black text-slate-300">{stateLabel}</div>
                 </div>
               </div>
             </article>
@@ -226,5 +265,23 @@ export default function ComparisonPage() {
         })}
       </section>
     </>
+  )
+}
+
+function ComparisonCountPanel({ label, observation, onEdit, total, userName }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-slate-950/45 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
+          <div className="mt-1 truncate font-black text-slate-100">{userName}</div>
+        </div>
+        <button className="grid h-10 w-10 flex-none place-items-center rounded-lg bg-white/10 text-slate-100 hover:bg-white/15" onClick={onEdit} type="button" aria-label={`Editar ${label}`}>
+          <Edit3 size={17} />
+        </button>
+      </div>
+      <div className="mt-4 font-mono text-3xl font-black tabular-nums text-slate-50">{formatNumber(total)}</div>
+      <div className="mt-2 rounded-lg bg-white/5 p-3 text-sm font-bold text-slate-300">{observation}</div>
+    </div>
   )
 }

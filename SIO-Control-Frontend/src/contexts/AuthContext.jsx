@@ -7,6 +7,7 @@ import {
   signOut,
 } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase'
+import { upsertUserProfile } from '../services/userService'
 import { AuthContext } from './AuthContextCore'
 
 export function AuthProvider({ children }) {
@@ -17,6 +18,7 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser)
       setLoading(false)
+      if (currentUser) upsertUserProfile(currentUser).catch(() => {})
     })
 
     return unsubscribe

@@ -346,7 +346,7 @@ export async function updateInventoryStatus(inventoryId, status, user) {
   })
 }
 
-export async function setUserProductTotal(inventoryId, userCountId, categoryId, productId, quantity, user) {
+export async function setUserProductTotal(inventoryId, userCountId, categoryId, productId, quantity, user, observation = 'Ajuste comparacion', comment = 'Correccion directa en comparacion') {
   const data = await getRawInventoryDocument(inventoryId)
   const userCounts = (data.userCounts || []).map((count, index) => normalizeUserCount(count, data.categories || [], index))
   const userIndex = userCounts.findIndex((count) => count.id === userCountId || count.userId === userCountId)
@@ -360,8 +360,8 @@ export async function setUserProductTotal(inventoryId, userCountId, categoryId, 
       ? [{
           id: createId('entry'),
           quantity: Number(quantity || 0),
-          observation: 'Ajuste comparacion',
-          comment: 'Correccion directa en comparacion',
+          observation,
+          comment,
           userId: userSnapshot.uid,
           userName: userSnapshot.name,
           createdAt: now,

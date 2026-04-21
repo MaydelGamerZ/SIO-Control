@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
+  GitCompare,
   History,
   Home,
   LogOut,
@@ -13,46 +14,90 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
-  GitCompare,
   Upload,
+  Users,
   X,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
-const navItems = [
+const adminEmail = 'maydelgamerz90@gmail.com'
+
+const inventoryItems = [
   { to: '/inventario/resumen', label: 'Resumen del dia', icon: BarChart3 },
   { to: '/inventario/cargar', label: 'Cargar inventario', icon: Upload },
   { to: '/inventario/conteo', label: 'Conteo en proceso', icon: ClipboardCheck },
   { to: '/inventario/comparar', label: 'Comparar conteos', icon: GitCompare },
-  { to: '/inventario/historial', label: 'Historial de inventarios', icon: History },
+  { to: '/inventario/historial', label: 'Historial', icon: History },
 ]
 
 const mainItems = [
   { to: '/inicio', label: 'Inicio', icon: Home },
 ]
 
-function getInitials(user) {
-  const source = user?.displayName || user?.email || 'Usuario'
-  return source
-    .split(/\s|@/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('')
+const adminItems = [
+  { to: '/administracion/usuarios', label: 'Usuarios', icon: Users },
+]
+
+function isAdmin(user) {
+  return user?.email?.toLowerCase() === adminEmail
+}
+
+function SidebarTooltip({ children, visible }) {
+  if (!visible) return null
+  return (
+    <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden w-max -translate-y-1/2 rounded-md bg-slate-800 px-2.5 py-1.5 text-xs font-black text-white shadow-xl ring-1 ring-white/10 group-hover:block">
+      {children}
+    </span>
+  )
+}
+
+function NavItem({ collapsed, exactActive = false, icon, label, onSelect, to }) {
+  const IconComponent = icon
+  return (
+    <NavLink
+      className={({ isActive }) =>
+        `group relative flex min-h-12 items-center gap-3 rounded-xl text-sm font-black transition ${
+          collapsed ? 'justify-center px-0' : 'px-3'
+        } ${
+          isActive || exactActive
+            ? 'bg-blue-500/15 text-blue-100 ring-1 ring-blue-300/25'
+            : 'text-slate-300 hover:bg-white/10 hover:text-white'
+        }`
+      }
+      onClick={onSelect}
+      title={collapsed ? label : undefined}
+      to={to}
+    >
+      {({ isActive }) => (
+        <>
+          {(isActive || exactActive) && <span className="absolute left-0 top-2 h-8 w-1 rounded-r-full bg-blue-400" />}
+          <IconComponent size={21} />
+          {!collapsed && <span className="truncate">{label}</span>}
+          <SidebarTooltip visible={collapsed}>{label}</SidebarTooltip>
+        </>
+      )}
+    </NavLink>
+  )
 }
 
 export default function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [inventoryOpen, setInventoryOpen] = useState(true)
+  const [adminOpen, setAdminOpen] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const isInventoryDetail = /^\/inventario\/(?!resumen$|cargar$|conteo$|comparar$|historial$)[^/]+(?:\/editar|\/comparar)?$/.test(location.pathname)
+  const userLabel = user?.displayName || user?.email || 'Usuario'
+  const inventoryDetailActive = /^\/inventario\/(?!resumen$|cargar$|conteo$|comparar$|historial$)[^/]+(?:\/editar|\/comparar)?$/.test(location.pathname)
 
   async function handleLogout() {
     await logout()
     navigate('/login', { replace: true })
+  }
+
+  function closeDrawer() {
+    setDrawerOpen(false)
   }
 
   return (
@@ -69,30 +114,31 @@ export default function AppShell() {
       {drawerOpen && (
         <button
           aria-label="Cerrar menu"
-          className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm lg:hidden"
-          onClick={() => setDrawerOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-950/75 backdrop-blur-sm lg:hidden"
+          onClick={closeDrawer}
           type="button"
         />
       )}
 
       <aside
-        className={`safe-top safe-bottom fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1.25rem)] bg-[#060b13] text-white transition-all duration-300 lg:max-w-none lg:translate-x-0 ${
+        className={`safe-top safe-bottom fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] bg-[#060b13] text-white shadow-2xl shadow-black/40 transition-transform duration-300 lg:max-w-none lg:translate-x-0 ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        } ${sidebarCollapsed ? 'w-[88px]' : 'w-[320px] xl:w-[340px]'}`}
+        } ${sidebarCollapsed ? 'w-[88px]' : 'w-[304px] xl:w-[320px]'}`}
       >
-        <div className="flex min-h-full w-full flex-col border-r border-white/10">
-          <div className="flex min-h-20 items-center justify-between gap-3 border-b border-white/10 px-4">
-            {!sidebarCollapsed && (
-              <div>
-                <div className="text-xl font-black tracking-tight">SIO-Control</div>
-                <div className="mt-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Inventario</div>
+        <div className="flex min-h-0 w-full flex-col border-r border-white/10">
+          <header className={`flex min-h-20 flex-none items-center border-b border-white/10 px-4 ${sidebarCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
+            {!sidebarCollapsed ? (
+              <div className="min-w-0">
+                <div className="truncate text-xl font-black tracking-tight">SIO-Control</div>
+                <div className="mt-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Inventario operativo</div>
               </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black">SIO</div>
             )}
-            {sidebarCollapsed && <div className="mx-auto text-lg font-black">SIO</div>}
             <div className="flex items-center gap-2">
               <button
                 aria-label="Colapsar menu"
-                className="hidden h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 lg:grid"
+                className="hidden h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 lg:grid"
                 onClick={() => setSidebarCollapsed((value) => !value)}
                 type="button"
               >
@@ -100,119 +146,114 @@ export default function AppShell() {
               </button>
               <button
                 aria-label="Cerrar menu"
-                className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 lg:hidden"
-                onClick={() => setDrawerOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 lg:hidden"
+                onClick={closeDrawer}
                 type="button"
               >
                 <X size={20} />
               </button>
             </div>
-          </div>
+          </header>
 
-          <div className="px-4 py-4">
-            <div className={`inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-sm font-bold text-blue-200 ${sidebarCollapsed ? 'justify-center px-2' : ''}`}>
+          <nav className="touch-scroll min-h-0 flex-1 overflow-y-auto px-3 py-4">
+            <div className={`mb-4 flex items-center gap-2 rounded-full border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-sm font-bold text-blue-200 ${sidebarCollapsed ? 'justify-center px-0' : ''}`}>
               <ShieldCheck size={16} />
               {!sidebarCollapsed && <span>Sistema activo</span>}
             </div>
-          </div>
 
-          <nav className="flex-1 space-y-2 px-3">
-            {mainItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <NavLink
-                  className={({ isActive }) =>
-                    `group relative flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-bold transition ${
-                      isActive ? 'bg-blue-500 text-white shadow-lg shadow-blue-950/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                    } ${sidebarCollapsed ? 'justify-center' : ''}`
-                  }
-                  key={item.to}
-                  onClick={() => setDrawerOpen(false)}
-                  title={sidebarCollapsed ? item.label : undefined}
-                  to={item.to}
-                >
-                  <Icon size={20} />
-                  {!sidebarCollapsed && <span>{item.label}</span>}
-                  {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-2 hidden rounded-md bg-slate-800 px-2 py-1 text-xs font-black text-white shadow-xl ring-1 ring-white/10 group-hover:block">{item.label}</span>}
-                </NavLink>
-              )
-            })}
+            <div className="space-y-2">
+              {mainItems.map((item) => (
+                <NavItem collapsed={sidebarCollapsed} key={item.to} onSelect={closeDrawer} {...item} />
+              ))}
 
-            <button
-              className={`group relative flex min-h-14 w-full items-center justify-between rounded-lg bg-white/10 px-3 text-left text-sm font-black text-white ring-1 ring-white/10 ${sidebarCollapsed ? 'justify-center' : ''}`}
-              onClick={() => setInventoryOpen((value) => !value)}
-              type="button"
-              title={sidebarCollapsed ? 'Inventario' : undefined}
-            >
-              <span className="flex items-center gap-3">
-                <PackageCheck size={22} />
-                {!sidebarCollapsed && <span>Inventario</span>}
-              </span>
-              {!sidebarCollapsed && (inventoryOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
-              {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-2 hidden rounded-md bg-slate-800 px-2 py-1 text-xs font-black text-white shadow-xl ring-1 ring-white/10 group-hover:block">Inventario</span>}
-            </button>
+              <button
+                className={`group relative flex min-h-12 w-full items-center rounded-xl bg-white/5 text-sm font-black text-white ring-1 ring-white/10 transition hover:bg-white/10 ${
+                  sidebarCollapsed ? 'justify-center px-0' : 'justify-between px-3'
+                }`}
+                onClick={() => setInventoryOpen((value) => !value)}
+                type="button"
+                title={sidebarCollapsed ? 'Inventario' : undefined}
+              >
+                <span className="flex items-center gap-3">
+                  <PackageCheck size={21} />
+                  {!sidebarCollapsed && <span>Inventario</span>}
+                </span>
+                {!sidebarCollapsed && (inventoryOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
+                <SidebarTooltip visible={sidebarCollapsed}>Inventario</SidebarTooltip>
+              </button>
 
-            {(inventoryOpen || sidebarCollapsed) && (
-              <div className="space-y-1">
-                {navItems.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <NavLink
-                      className={({ isActive }) =>
-                        `group relative flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-bold transition ${
-                          isActive || (item.to.includes('historial') && isInventoryDetail)
-                            ? 'bg-blue-500 text-white shadow-lg shadow-blue-950/20'
-                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                        } ${sidebarCollapsed ? 'justify-center' : ''}`
-                      }
+              {(inventoryOpen || sidebarCollapsed) && (
+                <div className={`space-y-1 ${sidebarCollapsed ? '' : 'pl-2'}`}>
+                  {inventoryItems.map((item) => (
+                    <NavItem
+                      collapsed={sidebarCollapsed}
+                      exactActive={item.to.includes('historial') && inventoryDetailActive}
                       key={item.to}
-                      onClick={() => setDrawerOpen(false)}
-                      title={sidebarCollapsed ? item.label : undefined}
-                      to={item.to}
-                    >
-                      <Icon size={20} />
-                      {!sidebarCollapsed && <span>{item.label}</span>}
-                      {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-2 hidden w-max rounded-md bg-slate-800 px-2 py-1 text-xs font-black text-white shadow-xl ring-1 ring-white/10 group-hover:block">{item.label}</span>}
-                    </NavLink>
-                  )
-                })}
-              </div>
-            )}
-          </nav>
-
-          <div className="space-y-3 border-t border-white/10 p-4">
-            <div className={`rounded-lg border border-white/10 bg-white/5 p-4 ${sidebarCollapsed ? 'grid place-items-center p-3' : ''}`}>
-              <div className="grid h-12 w-12 place-items-center rounded-lg bg-blue-500 text-sm font-black text-white">
-                {getInitials(user)}
-              </div>
-              {!sidebarCollapsed && (
-                <div className="mt-3">
-                  <div className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">Usuario</div>
-                  <div className="mt-1 font-black">{user?.displayName || 'Usuario'}</div>
-                  <div className="break-all text-sm text-slate-400">{user?.email}</div>
+                      onSelect={closeDrawer}
+                      {...item}
+                    />
+                  ))}
                 </div>
               )}
+
+              {isAdmin(user) && (
+                <>
+                  <button
+                    className={`group relative mt-4 flex min-h-12 w-full items-center rounded-xl bg-white/5 text-sm font-black text-white ring-1 ring-white/10 transition hover:bg-white/10 ${
+                      sidebarCollapsed ? 'justify-center px-0' : 'justify-between px-3'
+                    }`}
+                    onClick={() => setAdminOpen((value) => !value)}
+                    type="button"
+                    title={sidebarCollapsed ? 'Administracion' : undefined}
+                  >
+                    <span className="flex items-center gap-3">
+                      <Users size={21} />
+                      {!sidebarCollapsed && <span>Administracion</span>}
+                    </span>
+                    {!sidebarCollapsed && (adminOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
+                    <SidebarTooltip visible={sidebarCollapsed}>Administracion</SidebarTooltip>
+                  </button>
+                  {(adminOpen || sidebarCollapsed) && (
+                    <div className={`space-y-1 ${sidebarCollapsed ? '' : 'pl-2'}`}>
+                      {adminItems.map((item) => (
+                        <NavItem collapsed={sidebarCollapsed} key={item.to} onSelect={closeDrawer} {...item} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
+          </nav>
+
+          <footer className="flex-none border-t border-white/10 bg-[#060b13] p-3">
+            {!sidebarCollapsed && (
+              <div className="mb-3 min-w-0 px-1">
+                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Usuario</div>
+                <div className="mt-1 truncate text-sm font-black text-slate-200">{userLabel}</div>
+              </div>
+            )}
             <button
-              className={`group relative flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 font-black text-white hover:bg-rose-700 ${sidebarCollapsed ? 'px-2' : ''}`}
+              className={`group relative flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-600/15 px-3 font-black text-rose-100 transition hover:bg-rose-600 hover:text-white ${
+                sidebarCollapsed ? 'px-0' : ''
+              }`}
               onClick={handleLogout}
               type="button"
               title={sidebarCollapsed ? 'Cerrar sesion' : undefined}
             >
               <LogOut size={20} />
               {!sidebarCollapsed && <span>Cerrar sesion</span>}
-              {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-2 hidden w-max rounded-md bg-slate-800 px-2 py-1 text-xs font-black text-white shadow-xl ring-1 ring-white/10 group-hover:block">Cerrar sesion</span>}
+              <SidebarTooltip visible={sidebarCollapsed}>Cerrar sesion</SidebarTooltip>
             </button>
-          </div>
+          </footer>
         </div>
       </aside>
 
-      <main className={`min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[88px]' : 'lg:pl-[320px] xl:pl-[340px]'}`}>
+      <main className={`min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[88px]' : 'lg:pl-[304px] xl:pl-[320px]'}`}>
         <header className="safe-top sticky top-0 z-30 border-b border-white/10 bg-slate-950/90 backdrop-blur">
           <div className="safe-x mx-auto flex min-h-20 max-w-[1600px] items-center justify-between gap-4 sm:px-6 lg:px-8">
-            <div className="pl-14 lg:pl-0">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">SIO-Control</div>
-              <h1 className="mt-1 text-xl font-black tracking-tight text-slate-50 sm:text-2xl">Conteo de inventario</h1>
+            <div className="min-w-0 pl-14 lg:pl-0">
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">SIO-Control</div>
+              <h1 className="mt-1 truncate text-xl font-black tracking-tight text-slate-50 sm:text-2xl">Conteo de inventario</h1>
             </div>
             <div className="hidden items-center gap-3 md:flex">
               <span className="rounded-md bg-blue-500/10 px-3 py-1 text-xs font-black text-blue-200 ring-1 ring-blue-300/20">Tablet ready</span>
