@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { Badge, Button, EmptyState, ErrorState, LoadingState, Metric } from '../components/ui'
@@ -26,7 +26,9 @@ export default function CountPage() {
   const [inventory, setInventory] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [mobileSearchActive, setMobileSearchActive] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
+  const productsSectionRef = useRef(null)
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -65,6 +67,24 @@ export default function CountPage() {
       active = false
     }
   }, [id])
+
+  useEffect(() => {
+    function handleWindowScroll() {
+      if (window.innerWidth < 768) setMobileSearchActive(false)
+    }
+
+    window.addEventListener('scroll', handleWindowScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleWindowScroll)
+  }, [])
+
+  useEffect(() => {
+    if (!toolsOpen) return undefined
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [toolsOpen])
 
   const categories = useMemo(() => inventory?.categories || [], [inventory])
   const activeCategory = categories.find((category) => category.id === activeCategoryId) || categories[0]
@@ -135,6 +155,10 @@ export default function CountPage() {
     setActiveCategoryId(categories[nextIndex].id)
   }
 
+  function scrollToProducts() {
+    productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   if (loading) return <LoadingState label="Cargando conteo" />
   if (!inventory) {
     return (
@@ -162,7 +186,7 @@ export default function CountPage() {
     <>
       <ErrorState message={error} />
 
-      <section className="mb-4 rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl shadow-black/20 lg:sticky lg:top-[calc(5rem+env(safe-area-inset-top))] lg:z-20 lg:mb-5 sm:p-5">
+      <section className="mb-4 rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl shadow-black/20 lg:sticky lg:top-[calc(5rem_+_env(safe-area-inset-top))] lg:z-20 lg:mb-5 sm:p-5">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -180,33 +204,45 @@ export default function CountPage() {
             </div>
           </div>
 
-          <div className="grid min-w-0 gap-2 sm:grid-cols-[auto_1fr] xl:min-w-[460px]">
-            <Button className="w-full sm:hidden" onClick={() => setToolsOpen(true)} tone="light">
-              <SlidersHorizontal size={18} /> Herramientas
-            </Button>
-            <div className="grid grid-cols-2 gap-2 sm:col-span-2 xl:col-span-1">
-              <Button className="w-full" onClick={() => handleSave(inventoryStatuses.inProgress)} tone="blue">Guardar</Button>
-              <Button className="w-full" onClick={() => handleSave(inventoryStatuses.saved)} tone="dark">Guardar y salir</Button>
-            </div>
+          <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-2 xl:min-w-[460px]">
+            <Button className="w-full" onClick={() => handleSave(inventoryStatuses.inProgress)} tone="blue">Guardar</Button>
+            <Button className="w-full" onClick={() => handleSave(inventoryStatuses.saved)} tone="dark">Guardar y salir</Button>
           </div>
         </div>
       </section>
 
+      <MobileSearchToolbar
+        active={mobileSearchActive}
+        onBlur={() => setMobileSearchActive(false)}
+        onClear={() => setSearch('')}
+        onFocus={() => setMobileSearchActive(true)}
+        onOpenTools={() => setToolsOpen(true)}
+        search={search}
+        setSearch={setSearch}
+      />
+
       <ToolsPanel
         activeCategory={activeCategory}
+        activeIndex={activeIndex}
         categories={categories}
         compactView={compactView}
         filterId={filterId}
+        inventory={inventory}
         onCategoryChange={setActiveCategoryId}
+        onClearFilters={() => setFilterId('all')}
+        onClearSearch={() => setSearch('')}
         onClose={() => setToolsOpen(false)}
         onCompactViewChange={setCompactView}
         onFilterChange={setFilterId}
-        onSearchChange={setSearch}
+        onGoCategory={goCategory}
+        onSave={() => handleSave(inventoryStatuses.inProgress)}
+        onSaveAndExit={() => handleSave(inventoryStatuses.saved)}
+        onScrollToProducts={scrollToProducts}
         open={toolsOpen}
         search={search}
       />
 
-      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:block">
+      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 md:block">
         <div className="grid gap-3 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1fr)_auto] xl:items-start">
           <SearchBox search={search} setSearch={setSearch} />
           <FilterChips filterId={filterId} setFilterId={setFilterId} />
@@ -216,7 +252,7 @@ export default function CountPage() {
         </div>
       </section>
 
-      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:block xl:hidden">
+      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 md:block xl:hidden">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-black text-slate-50">Categorias</h3>
           <span className="text-sm font-bold text-slate-400">{activeIndex + 1} de {categories.length}</span>
@@ -241,7 +277,7 @@ export default function CountPage() {
       </section>
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <aside className="hidden xl:block xl:sticky xl:top-[calc(15rem+env(safe-area-inset-top))] xl:h-[calc(100dvh-16rem)]">
+        <aside className="hidden xl:block xl:sticky xl:top-[calc(15rem_+_env(safe-area-inset-top))] xl:h-[calc(100dvh-16rem)]">
           <section className="touch-scroll h-full overflow-y-auto rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15">
             <h3 className="text-lg font-black text-slate-50">Categorias del PDF</h3>
             <div className="mt-4 space-y-3">
@@ -278,7 +314,7 @@ export default function CountPage() {
           </section>
         </aside>
 
-        <section className="min-w-0">
+        <section className="min-w-0 scroll-mt-32" ref={productsSectionRef}>
           <div className="mb-4 rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
@@ -325,24 +361,79 @@ export default function CountPage() {
   )
 }
 
-function SearchBox({ search, setSearch }) {
+function MobileSearchToolbar({ active, onBlur, onClear, onFocus, onOpenTools, search, setSearch }) {
   return (
-    <label className="relative min-w-0">
-      <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+    <section className="safe-x sticky top-[calc(5rem_+_env(safe-area-inset-top))] z-20 -mx-3 mb-4 border-y border-white/10 bg-slate-950/95 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur md:hidden">
+      <div className={`flex items-center gap-2 transition-all duration-200 ${active ? 'py-1' : ''}`}>
+        <SearchBox
+          active={active}
+          onBlur={onBlur}
+          onClear={onClear}
+          onFocus={onFocus}
+          search={search}
+          setSearch={setSearch}
+          variant="mobile"
+        />
+        <button
+          aria-label="Abrir herramientas de conteo"
+          className="grid h-11 w-11 flex-none place-items-center rounded-xl border border-white/10 bg-blue-600 text-white shadow-lg shadow-blue-950/25 transition hover:bg-blue-500"
+          onClick={onOpenTools}
+          type="button"
+        >
+          <SlidersHorizontal size={20} />
+        </button>
+      </div>
+      {active && (
+        <div className="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+          <span>{search ? 'Busqueda activa' : 'Escribe para filtrar'}</span>
+          {search && (
+            <button className="text-blue-200" onClick={onClear} type="button">
+              Limpiar
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function SearchBox({ active = false, onBlur, onClear, onFocus, search, setSearch, variant = 'default' }) {
+  const isMobile = variant === 'mobile'
+
+  return (
+    <label className="relative min-w-0 flex-1">
+      <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={isMobile ? 18 : 20} />
       <input
-        className="min-h-14 w-full rounded-lg border border-white/10 bg-slate-950/70 pl-12 pr-4 font-bold text-slate-50 outline-none placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950"
+        className={`w-full rounded-lg border border-white/10 bg-slate-950/70 pl-11 font-bold text-slate-50 outline-none transition-all duration-200 placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950 ${
+          isMobile
+            ? `${active ? 'min-h-[52px] text-base shadow-lg shadow-blue-950/15 ring-2 ring-blue-500/15' : 'min-h-11 text-base'} ${search ? 'pr-11' : 'pr-3'}`
+            : 'min-h-14 pl-12 pr-4'
+        }`}
         inputMode="search"
         onChange={(event) => setSearch(event.target.value)}
+        onBlur={onBlur}
+        onFocus={onFocus}
         placeholder="Buscar producto"
+        type="search"
         value={search}
       />
+      {isMobile && search && (
+        <button
+          aria-label="Limpiar busqueda"
+          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg bg-white/10 text-slate-200"
+          onClick={onClear}
+          type="button"
+        >
+          <X size={16} />
+        </button>
+      )}
     </label>
   )
 }
 
-function FilterChips({ filterId, setFilterId }) {
+function FilterChips({ filterId, layout = 'scroll', setFilterId }) {
   return (
-    <div className="touch-scroll flex gap-2 overflow-x-auto pb-1 xl:flex-wrap xl:overflow-visible">
+    <div className={`touch-scroll flex gap-2 pb-1 ${layout === 'wrap' ? 'flex-wrap overflow-visible' : 'overflow-x-auto xl:flex-wrap xl:overflow-visible'}`}>
       {productFilters.map((filter) => (
         <button
           className={`min-h-11 flex-none rounded-full border px-4 text-sm font-black transition ${
@@ -363,59 +454,162 @@ function FilterChips({ filterId, setFilterId }) {
 
 function ToolsPanel({
   activeCategory,
+  activeIndex,
   categories,
   compactView,
   filterId,
+  inventory,
   onCategoryChange,
+  onClearFilters,
+  onClearSearch,
   onClose,
   onCompactViewChange,
   onFilterChange,
-  onSearchChange,
+  onGoCategory,
+  onSave,
+  onSaveAndExit,
+  onScrollToProducts,
   open,
   search,
 }) {
   if (!open) return null
 
+  function selectCategory(categoryId) {
+    onCategoryChange(categoryId)
+    onClose()
+    window.setTimeout(onScrollToProducts, 0)
+  }
+
   return (
-    <div className="fixed inset-0 z-50 sm:hidden">
-      <button aria-label="Cerrar herramientas" className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" onClick={onClose} type="button" />
-      <section className="safe-x safe-bottom absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-3xl border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black touch-scroll">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Herramientas</p>
-            <h3 className="mt-1 text-2xl font-black text-slate-50">Conteo</h3>
+    <div className="fixed inset-0 z-50 md:hidden">
+      <button aria-label="Cerrar herramientas" className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm" onClick={onClose} type="button" />
+      <section className="safe-top safe-bottom absolute inset-y-0 right-0 flex w-[min(92vw,390px)] max-w-full flex-col border-l border-white/10 bg-[#070c15] shadow-2xl shadow-black">
+        <div className="safe-x border-b border-white/10 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Herramientas</p>
+              <h3 className="mt-1 truncate text-2xl font-black text-slate-50">Conteo</h3>
+            </div>
+            <button className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-white/10 text-slate-100" onClick={onClose} type="button" aria-label="Cerrar">
+              <X size={20} />
+            </button>
           </div>
-          <button className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 text-slate-100" onClick={onClose} type="button" aria-label="Cerrar">
-            <X size={20} />
-          </button>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+              <div className="text-xs font-black uppercase text-slate-500">Avance</div>
+              <div className="mt-1 font-black text-blue-200">{inventory.progress}%</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+              <div className="text-xs font-black uppercase text-slate-500">Prod.</div>
+              <div className="mt-1 font-black text-slate-100">{inventory.countedProducts}/{inventory.totalProducts}</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+              <div className="text-xs font-black uppercase text-slate-500">Mov.</div>
+              <div className="mt-1 font-black text-slate-100">{inventory.totalMovements || 0}</div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-4">
-          <SearchBox search={search} setSearch={onSearchChange} />
+        <div className="safe-x touch-scroll flex-1 space-y-5 overflow-y-auto p-4">
+          <section>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Categorias</p>
+                <p className="mt-1 text-sm font-bold text-slate-500">{activeIndex + 1} de {categories.length}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  aria-label="Categoria anterior"
+                  className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 disabled:opacity-40"
+                  disabled={activeIndex <= 0}
+                  onClick={() => onGoCategory(-1)}
+                  type="button"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  aria-label="Categoria siguiente"
+                  className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 disabled:opacity-40"
+                  disabled={activeIndex >= categories.length - 1}
+                  onClick={() => onGoCategory(1)}
+                  type="button"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {categories.map((category) => {
+                const progress = getCategoryProgress(category)
+                const selected = category.id === activeCategory?.id
+                return (
+                  <button
+                    className={`w-full rounded-xl border p-3 text-left transition ${
+                      selected ? 'border-blue-300/40 bg-blue-500/15 text-blue-100 ring-2 ring-blue-500/10' : 'border-white/10 bg-white/5 text-slate-300'
+                    }`}
+                    key={category.id}
+                    onClick={() => selectCategory(category.id)}
+                    type="button"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <strong className="min-w-0 break-words text-sm">{category.name}</strong>
+                      <span className="flex-none text-xs font-black">{progress}%</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs font-bold text-slate-500">
+                      <span>{category.products.length} productos</span>
+                      <span>{progress === 100 ? 'Revisada' : 'Pendiente'}</span>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} />
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
 
-          <label className="grid gap-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-            Categoria
-            <select
-              className="min-h-13 rounded-lg border border-white/10 bg-slate-900 px-4 text-base font-black normal-case tracking-normal text-slate-50 outline-none focus:border-blue-400"
-              onChange={(event) => onCategoryChange(event.target.value)}
-              value={activeCategory?.id || ''}
-            >
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.order + 1}. {category.name} ({category.products.length})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div>
+          <section>
             <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Filtros</div>
-            <FilterChips filterId={filterId} setFilterId={onFilterChange} />
-          </div>
+            <FilterChips filterId={filterId} layout="wrap" setFilterId={onFilterChange} />
+          </section>
 
-          <Button className="w-full" onClick={() => onCompactViewChange((value) => !value)} tone="light">
-            {compactView ? 'Cambiar a vista detallada' : 'Cambiar a vista compacta'}
-          </Button>
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Vista</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className={`min-h-12 rounded-lg border px-3 font-black ${compactView ? 'border-blue-300/40 bg-blue-500/20 text-blue-100' : 'border-white/10 bg-white/5 text-slate-300'}`}
+                onClick={() => onCompactViewChange(true)}
+                type="button"
+              >
+                Compacta
+              </button>
+              <button
+                className={`min-h-12 rounded-lg border px-3 font-black ${!compactView ? 'border-blue-300/40 bg-blue-500/20 text-blue-100' : 'border-white/10 bg-white/5 text-slate-300'}`}
+                onClick={() => onCompactViewChange(false)}
+                type="button"
+              >
+                Detallada
+              </button>
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Herramientas</div>
+            <div className="grid gap-2">
+              <Button className="w-full justify-start" onClick={onScrollToProducts} tone="light">Ir al inicio de categoria</Button>
+              <Button className="w-full justify-start" onClick={onClearSearch} tone="light" disabled={!search}>Limpiar busqueda</Button>
+              <Button className="w-full justify-start" onClick={onClearFilters} tone="light" disabled={filterId === 'all'}>Limpiar filtros</Button>
+              <Button className="w-full justify-start" onClick={() => onFilterChange('counted')} tone="light">Solo con movimientos</Button>
+              <Button className="w-full justify-start" onClick={() => onFilterChange('pending')} tone="light">Solo sin contar</Button>
+            </div>
+          </section>
+        </div>
+
+        <div className="safe-x safe-bottom border-t border-white/10 bg-slate-950/80 p-4">
+          <div className="grid grid-cols-2 gap-2">
+            <Button className="w-full" onClick={onSave} tone="blue">Guardar</Button>
+            <Button className="w-full" onClick={onSaveAndExit} tone="dark">Guardar y salir</Button>
+          </div>
         </div>
       </section>
     </div>
