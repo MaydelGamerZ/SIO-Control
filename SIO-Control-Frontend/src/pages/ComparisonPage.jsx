@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BadgeCheck, CheckCircle2, Edit3, GitCompare, Plus, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
+import { BadgeCheck, CheckCircle2, Edit3, GitCompare, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { Badge, Button, EmptyState, ErrorState, LoadingState, PageTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -42,6 +42,7 @@ function hasObservations(product) {
 }
 
 export default function ComparisonPage() {
+  const [categoryFilterId, setCategoryFilterId] = useState('all')
   const [countAId, setCountAId] = useState('')
   const [countBId, setCountBId] = useState('')
   const [error, setError] = useState('')
@@ -49,6 +50,9 @@ export default function ComparisonPage() {
   const [inventory, setInventory] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
+  const [searchActive, setSearchActive] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -85,8 +89,27 @@ export default function ComparisonPage() {
     }
   }, [id])
 
+  useEffect(() => {
+    function handleWindowScroll() {
+      setSearchActive(false)
+    }
+
+    window.addEventListener('scroll', handleWindowScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleWindowScroll)
+  }, [])
+
+  useEffect(() => {
+    if (!toolsOpen) return undefined
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [toolsOpen])
+
   const countA = inventory?.userCounts?.find((count) => count.id === countAId)
   const countB = inventory?.userCounts?.find((count) => count.id === countBId)
+  const comparisonCategories = useMemo(() => countA?.categories || inventory?.categories || [], [countA, inventory])
 
   const comparisonRows = useMemo(() => {
     if (!inventory || !countA || !countB) return []
@@ -120,9 +143,13 @@ export default function ComparisonPage() {
   const matchingRows = comparisonRows.filter((row) => row.difference === 0 && !row.missingInfo).length
   const differentRows = comparisonRows.filter((row) => row.difference !== 0).length
   const pendingRows = comparisonRows.filter((row) => row.missingInfo).length
+  const normalizedSearch = search.trim().toLowerCase()
 
   const filteredRows = useMemo(() => {
     return comparisonRows.filter((row) => {
+      const matchesSearch = !normalizedSearch || `${row.product.name} ${row.categoryName}`.toLowerCase().includes(normalizedSearch)
+      if (!matchesSearch) return false
+      if (categoryFilterId !== 'all' && row.categoryId !== categoryFilterId) return false
       if (filterId === 'match') return row.difference === 0 && !row.missingInfo
       if (filterId === 'different') return row.difference !== 0
       if (filterId === 'pending') return row.missingInfo
@@ -130,7 +157,13 @@ export default function ComparisonPage() {
       if (filterId === 'observations') return row.observed
       return true
     })
-  }, [comparisonRows, filterId])
+  }, [categoryFilterId, comparisonRows, filterId, normalizedSearch])
+
+  function clearComparisonTools() {
+    setCategoryFilterId('all')
+    setFilterId('all')
+    setSearch('')
+  }
 
   async function addEntry(userCountId, row, label) {
     const quantity = window.prompt(`Cantidad para ${label}`, '0')
@@ -224,46 +257,69 @@ export default function ComparisonPage() {
 
   return (
     <>
-      <PageTitle
-        action={
-          <div className="flex flex-wrap gap-2">
+      <section className="mb-4 rounded-xl border border-white/10 bg-slate-900/85 p-4 shadow-xl shadow-black/15 sm:p-5">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Comparacion multiusuario</p>
+              <Badge tone="blue">{inventory.status}</Badge>
+              <Badge tone="green">{inventory.cedis}</Badge>
+            </div>
+            <h2 className="mt-2 break-words text-2xl font-black tracking-tight text-slate-50 sm:text-3xl">
+              Validacion {formatDisplayDate(inventory.dateKey)}
+            </h2>
+            <div className="mt-3 flex flex-wrap gap-2 text-sm font-bold text-slate-300">
+              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.semana || 'Sin semana'}</span>
+              <span className="rounded-md bg-emerald-400/10 px-3 py-1 text-emerald-100 ring-1 ring-emerald-300/20">Coinciden {matchingRows}</span>
+              <span className="rounded-md bg-rose-500/10 px-3 py-1 text-rose-100 ring-1 ring-rose-300/20">Diferencias {differentRows}</span>
+              <span className="rounded-md bg-amber-400/10 px-3 py-1 text-amber-100 ring-1 ring-amber-300/20">Pendientes {pendingRows}</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 lg:justify-end">
             <Button onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="light"><RotateCcw size={18} />Volver a conteo</Button>
             <Button disabled={saving || countAId === countBId} onClick={createFinalCount} tone="blue"><ShieldCheck size={18} />Generar conteo final</Button>
           </div>
-        }
-        eyebrow="Comparacion multiusuario"
-        title={`Validacion ${formatDisplayDate(inventory.dateKey)}`}
-      >
-        {inventory.semana || 'Sin semana'} - {inventory.cedis} - revision por producto con historial completo.
-      </PageTitle>
+        </div>
+      </section>
       <ErrorState message={error} />
 
-      <section className="sticky top-[calc(5rem_+_env(safe-area-inset-top))] z-20 grid gap-4 rounded-xl border border-white/10 bg-slate-900/95 p-4 shadow-xl shadow-black/20 backdrop-blur lg:grid-cols-[minmax(240px,1fr)_310px_minmax(240px,1fr)] lg:items-center">
-        <UserSelector label="Usuario A" tone="blue" count={countA} onChange={setCountAId} value={countAId} userCounts={inventory.userCounts} />
-        <div className="grid grid-cols-3 gap-2">
-          <SummaryBox label="Coinciden" value={matchingRows} tone="green" />
-          <SummaryBox label="Diferencias" value={differentRows} tone="red" />
-          <SummaryBox label="Pendientes" value={pendingRows} tone="amber" />
-        </div>
-        <UserSelector label="Usuario B" tone="amber" count={countB} onChange={setCountBId} value={countBId} userCounts={inventory.userCounts} />
-      </section>
+      <ComparisonSearchToolbar
+        active={searchActive}
+        countA={countA}
+        countB={countB}
+        differentRows={differentRows}
+        matchingRows={matchingRows}
+        onBlur={() => setSearchActive(false)}
+        onClear={() => setSearch('')}
+        onFocus={() => setSearchActive(true)}
+        onOpenTools={() => setToolsOpen(true)}
+        pendingRows={pendingRows}
+        search={search}
+        setSearch={setSearch}
+      />
 
-      <section className="sticky top-[calc(15.5rem_+_env(safe-area-inset-top))] z-10 mt-4 rounded-xl border border-white/10 bg-slate-900/90 p-3 shadow-lg shadow-black/15 backdrop-blur">
-        <div className="touch-scroll flex gap-2 overflow-x-auto pb-1">
-          {comparisonFilters.map((filter) => (
-            <button
-              className={`min-h-10 flex-none rounded-full border px-4 text-sm font-black transition ${
-                filterId === filter.id ? 'border-blue-300/40 bg-blue-500/20 text-blue-100' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-              key={filter.id}
-              onClick={() => setFilterId(filter.id)}
-              type="button"
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
-      </section>
+      <ComparisonToolsPanel
+        categories={comparisonCategories}
+        categoryFilterId={categoryFilterId}
+        countA={countA}
+        countAId={countAId}
+        countB={countB}
+        countBId={countBId}
+        disabled={saving || countAId === countBId}
+        filterId={filterId}
+        inventory={inventory}
+        onClear={clearComparisonTools}
+        onClose={() => setToolsOpen(false)}
+        onCreateFinal={createFinalCount}
+        onCategoryChange={setCategoryFilterId}
+        onFilterChange={setFilterId}
+        onReturn={() => navigate(`/inventario/${inventory.id}/editar`)}
+        onSelectA={setCountAId}
+        onSelectB={setCountBId}
+        open={toolsOpen}
+        search={search}
+        setSearch={setSearch}
+      />
 
       {inventory.finalCount && (
         <section className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-4 text-emerald-100">
@@ -273,33 +329,256 @@ export default function ComparisonPage() {
       )}
 
       <section className="mt-5 grid gap-4">
-        {filteredRows.map((row) => (
-          <ComparisonProductCard
-            countA={countA}
-            countB={countB}
-            disabled={saving}
-            key={row.productKey}
-            onAddEntry={addEntry}
-            onDeleteEntry={deleteEntry}
-            onEditEntry={editEntry}
-            onToggleValidation={toggleValidation}
-            row={row}
-          />
-        ))}
+        {filteredRows.length === 0 ? (
+          <EmptyState description="Ajusta la busqueda o los filtros desde herramientas para volver a ver productos." title="Sin productos visibles" />
+        ) : (
+          filteredRows.map((row) => (
+            <ComparisonProductCard
+              countA={countA}
+              countB={countB}
+              disabled={saving}
+              key={row.productKey}
+              onAddEntry={addEntry}
+              onDeleteEntry={deleteEntry}
+              onEditEntry={editEntry}
+              onToggleValidation={toggleValidation}
+              row={row}
+            />
+          ))
+        )}
       </section>
     </>
+  )
+}
+
+function ComparisonSearchToolbar({
+  active,
+  countA,
+  countB,
+  differentRows,
+  matchingRows,
+  onBlur,
+  onClear,
+  onFocus,
+  onOpenTools,
+  pendingRows,
+  search,
+  setSearch,
+}) {
+  return (
+    <section className="safe-x sticky top-[calc(5rem_+_env(safe-area-inset-top))] z-20 -mx-3 mb-4 border-y border-white/10 bg-slate-950/95 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur md:mx-0 md:rounded-xl md:border md:px-4">
+      <div className={`grid gap-2 transition-all duration-200 lg:grid-cols-[minmax(280px,1fr)_330px] lg:items-center ${active ? 'py-1' : ''}`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <ComparisonSearchInput active={active} onBlur={onBlur} onClear={onClear} onFocus={onFocus} search={search} setSearch={setSearch} />
+          <button
+            aria-label="Abrir herramientas de comparacion"
+            className="grid h-11 w-11 flex-none place-items-center rounded-xl border border-white/10 bg-blue-600 text-white shadow-lg shadow-blue-950/25 transition hover:bg-blue-500 md:h-12 md:w-12"
+            onClick={onOpenTools}
+            type="button"
+          >
+            <SlidersHorizontal size={20} />
+          </button>
+        </div>
+        <div className="hidden grid-cols-3 gap-2 lg:grid">
+          <SummaryBox label="Coinciden" value={matchingRows} tone="green" />
+          <SummaryBox label="Dif." value={differentRows} tone="red" />
+          <SummaryBox label="Pend." value={pendingRows} tone="amber" />
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2 px-1 text-xs font-bold text-slate-400">
+        <span className="rounded-md bg-blue-500/10 px-2.5 py-1 text-blue-100 ring-1 ring-blue-300/20">A: {countA?.userName || 'Sin usuario'}</span>
+        <span className="rounded-md bg-amber-400/10 px-2.5 py-1 text-amber-100 ring-1 ring-amber-300/20">B: {countB?.userName || 'Sin usuario'}</span>
+        {active && <span className="rounded-md bg-white/5 px-2.5 py-1 ring-1 ring-white/10">{search ? 'Busqueda activa' : 'Escribe para filtrar'}</span>}
+      </div>
+    </section>
+  )
+}
+
+function ComparisonSearchInput({ active, onBlur, onClear, onFocus, search, setSearch }) {
+  return (
+    <label className="relative min-w-0 flex-1">
+      <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+      <input
+        className={`w-full rounded-lg border border-white/10 bg-slate-950/70 pl-11 font-bold text-slate-50 outline-none transition-all duration-200 placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950 ${
+          active ? 'min-h-[52px] text-base shadow-lg shadow-blue-950/15 ring-2 ring-blue-500/15' : 'min-h-11 text-base md:min-h-12'
+        } ${search ? 'pr-11' : 'pr-3'}`}
+        inputMode="search"
+        onBlur={onBlur}
+        onChange={(event) => setSearch(event.target.value)}
+        onFocus={onFocus}
+        placeholder="Buscar producto o categoria"
+        type="search"
+        value={search}
+      />
+      {search && (
+        <button
+          aria-label="Limpiar busqueda"
+          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg bg-white/10 text-slate-200"
+          onClick={onClear}
+          type="button"
+        >
+          <X size={16} />
+        </button>
+      )}
+    </label>
+  )
+}
+
+function ComparisonToolsPanel({
+  categories,
+  categoryFilterId,
+  countA,
+  countAId,
+  countB,
+  countBId,
+  disabled,
+  filterId,
+  inventory,
+  onClear,
+  onCategoryChange,
+  onClose,
+  onCreateFinal,
+  onFilterChange,
+  onReturn,
+  onSelectA,
+  onSelectB,
+  open,
+  search,
+  setSearch,
+}) {
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <button aria-label="Cerrar herramientas" className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm" onClick={onClose} type="button" />
+      <section className="safe-top safe-bottom absolute inset-y-0 right-0 flex w-[min(92vw,430px)] max-w-full flex-col border-l border-white/10 bg-[#070c15] shadow-2xl shadow-black md:w-[430px]">
+        <div className="safe-x border-b border-white/10 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Herramientas</p>
+              <h3 className="mt-1 truncate text-2xl font-black text-slate-50">Comparacion</h3>
+            </div>
+            <button aria-label="Cerrar" className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-white/10 text-slate-100" onClick={onClose} type="button">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <SummaryBox label="A" value={countA?.totalCounted || 0} tone="green" />
+            <SummaryBox label="B" value={countB?.totalCounted || 0} tone="amber" />
+            <SummaryBox label="Prod." value={inventory.totalProducts || 0} tone="green" />
+          </div>
+        </div>
+
+        <div className="safe-x touch-scroll flex-1 space-y-5 overflow-y-auto p-4">
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Conteos a comparar</div>
+            <div className="grid gap-3">
+              <UserSelector label="Usuario A" tone="blue" count={countA} onChange={onSelectA} value={countAId} userCounts={inventory.userCounts} />
+              <UserSelector label="Usuario B" tone="amber" count={countB} onChange={onSelectB} value={countBId} userCounts={inventory.userCounts} />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Buscar</div>
+            <ComparisonSearchInput active={Boolean(search)} onBlur={() => {}} onClear={() => setSearch('')} onFocus={() => {}} search={search} setSearch={setSearch} />
+          </section>
+
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Categorias</div>
+            <div className="touch-scroll max-h-72 space-y-2 overflow-y-auto pr-1">
+              <button
+                className={`w-full rounded-xl border p-3 text-left text-sm font-black transition ${
+                  categoryFilterId === 'all' ? 'border-blue-300/40 bg-blue-500/15 text-blue-100 ring-2 ring-blue-500/10' : 'border-white/10 bg-white/5 text-slate-300'
+                }`}
+                onClick={() => onCategoryChange('all')}
+                type="button"
+              >
+                Ver todas las categorias
+              </button>
+              {categories.map((category) => (
+                <button
+                  className={`w-full rounded-xl border p-3 text-left transition ${
+                    categoryFilterId === category.id ? 'border-blue-300/40 bg-blue-500/15 text-blue-100 ring-2 ring-blue-500/10' : 'border-white/10 bg-white/5 text-slate-300'
+                  }`}
+                  key={category.id}
+                  onClick={() => onCategoryChange(category.id)}
+                  type="button"
+                >
+                  <div className="break-words text-sm font-black">{category.name}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-500">{category.products?.length || 0} productos</div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Vista global</div>
+            <ComparisonFilterChips filterId={filterId} ids={['all']} setFilterId={onFilterChange} />
+          </section>
+
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Estado de comparacion</div>
+            <ComparisonFilterChips excludeIds={['all', 'observations']} filterId={filterId} setFilterId={onFilterChange} />
+          </section>
+
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Condiciones</div>
+            <ComparisonFilterChips filterId={filterId} ids={['observations']} setFilterId={onFilterChange} />
+          </section>
+
+          <section>
+            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Acciones</div>
+            <div className="grid gap-2">
+              <Button className="w-full justify-start" onClick={onClear} tone="light" disabled={filterId === 'all' && !search}>Limpiar filtros</Button>
+              <Button className="w-full justify-start" onClick={() => onFilterChange('different')} tone="light">Mostrar solo diferencias</Button>
+              <Button className="w-full justify-start" onClick={() => onFilterChange('pending')} tone="light">Mostrar pendientes</Button>
+              <Button className="w-full justify-start" onClick={() => onFilterChange('validated')} tone="light">Mostrar validados</Button>
+              <Button className="w-full justify-start" onClick={onReturn} tone="light"><RotateCcw size={17} />Volver a conteo</Button>
+            </div>
+          </section>
+        </div>
+
+        <div className="safe-x safe-bottom border-t border-white/10 bg-slate-950/80 p-4">
+          <Button className="w-full" disabled={disabled} onClick={onCreateFinal} tone="blue"><ShieldCheck size={18} />Generar conteo final</Button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function ComparisonFilterChips({ excludeIds = [], filterId, ids = null, setFilterId }) {
+  const visibleFilters = comparisonFilters.filter((filter) => {
+    if (ids) return ids.includes(filter.id)
+    return !excludeIds.includes(filter.id)
+  })
+
+  return (
+    <div className="touch-scroll flex flex-wrap gap-2">
+      {visibleFilters.map((filter) => (
+        <button
+          className={`min-h-11 flex-none rounded-full border px-4 text-sm font-black transition ${
+            filterId === filter.id ? 'border-blue-300/40 bg-blue-500/20 text-blue-100' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+          }`}
+          key={filter.id}
+          onClick={() => setFilterId(filter.id)}
+          type="button"
+        >
+          {filter.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
 function UserSelector({ count, label, onChange, tone, userCounts, value }) {
   const toneClass = tone === 'blue' ? 'border-blue-300/20 bg-blue-500/10 text-blue-200' : 'border-amber-300/20 bg-amber-400/10 text-amber-200'
   return (
-    <article className={`rounded-xl border p-4 ${toneClass}`}>
+    <article className={`rounded-xl border p-3 ${toneClass}`}>
       <label className="text-xs font-black uppercase tracking-[0.18em]">{label}</label>
-      <select className="mt-3 min-h-11 w-full rounded-lg border border-white/10 bg-slate-950 px-3 font-bold text-slate-50 outline-none focus:border-blue-400" onChange={(event) => onChange(event.target.value)} value={value}>
+      <select className="mt-2 min-h-11 w-full rounded-lg border border-white/10 bg-slate-950 px-3 font-bold text-slate-50 outline-none focus:border-blue-400" onChange={(event) => onChange(event.target.value)} value={value}>
         {userCounts.map((userCount) => <option key={userCount.id} value={userCount.id}>{userCount.userName}</option>)}
       </select>
-      <div className="mt-3 text-sm font-bold text-slate-300">{formatNumber(count?.totalCounted || 0)} unidades capturadas</div>
+      <div className="mt-2 text-sm font-bold text-slate-300">{formatNumber(count?.totalCounted || 0)} unidades capturadas</div>
     </article>
   )
 }

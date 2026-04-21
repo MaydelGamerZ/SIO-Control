@@ -30,7 +30,7 @@ export default function CountPage() {
   const [inventory, setInventory] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [mobileSearchActive, setMobileSearchActive] = useState(false)
+  const [searchActive, setSearchActive] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const productsSectionRef = useRef(null)
   const { id } = useParams()
@@ -76,7 +76,7 @@ export default function CountPage() {
 
   useEffect(() => {
     function handleWindowScroll() {
-      if (window.innerWidth < 768) setMobileSearchActive(false)
+      setSearchActive(false)
     }
 
     window.addEventListener('scroll', handleWindowScroll, { passive: true })
@@ -96,6 +96,7 @@ export default function CountPage() {
   const activeCategory = categories.find((category) => category.id === activeCategoryId) || categories[0]
   const activeIndex = Math.max(categories.findIndex((category) => category.id === activeCategory?.id), 0)
   const normalizedSearch = search.trim().toLowerCase()
+  const globalProductView = Boolean(normalizedSearch) || filterId === 'global'
   const visibleProductRows = useMemo(() => {
     if (!inventory) return []
     return filterProductRows({
@@ -197,41 +198,37 @@ export default function CountPage() {
     <>
       <ErrorState message={error} />
 
-      <section className="mb-4 rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl shadow-black/20 md:sticky md:top-[calc(5rem_+_env(safe-area-inset-top))] md:z-30 lg:mb-5 sm:p-5">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Conteo en proceso</p>
-              <Badge tone="blue">{inventory.status || inventoryStatuses.inProgress}</Badge>
-              <Badge tone="green">Modo individual</Badge>
-            </div>
-            <h2 className="mt-2 break-words text-2xl font-black leading-tight tracking-tight text-slate-50 sm:text-3xl lg:text-4xl">
-              Inventario diario - {inventory.fecha || inventory.dateKey}
-            </h2>
-            <div className="mt-3 flex flex-wrap gap-2 text-sm font-bold text-slate-300">
-              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.cedis}</span>
-              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">Avance general {inventory.progress}%</span>
-              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.countedProducts} de {inventory.totalProducts} productos</span>
-              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.totalMovements || 0} movimientos</span>
-              <span className="rounded-md bg-blue-500/10 px-3 py-1 text-blue-100 ring-1 ring-blue-300/20">{inventory.activeUserCount?.userName || user?.email}</span>
-              <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.userCountCount} conteo{inventory.userCountCount === 1 ? '' : 's'} registrado{inventory.userCountCount === 1 ? '' : 's'}</span>
-            </div>
+      <section className="mb-4 rounded-xl border border-white/10 bg-slate-900/85 p-4 shadow-xl shadow-black/15 sm:p-5">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Conteo en proceso</p>
+            <Badge tone="blue">{inventory.status || inventoryStatuses.inProgress}</Badge>
+            <Badge tone="green">Modo individual</Badge>
           </div>
-
-          <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-3 xl:min-w-[620px]">
-            <Button className="w-full" onClick={() => handleSave(inventoryStatuses.inProgress)} tone="blue">Guardar</Button>
-            <Button className="w-full" onClick={() => handleSave(inventoryStatuses.saved)} tone="dark">Guardar y salir</Button>
-            {canAudit && <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light">Comparar conteos</Button>}
+          <h2 className="mt-2 break-words text-2xl font-black leading-tight tracking-tight text-slate-50 sm:text-3xl">
+            Inventario diario - {inventory.fecha || inventory.dateKey}
+          </h2>
+          <div className="mt-3 flex flex-wrap gap-2 text-sm font-bold text-slate-300">
+            <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.cedis}</span>
+            <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">Avance {inventory.progress}%</span>
+            <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.countedProducts}/{inventory.totalProducts} productos</span>
+            <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.totalMovements || 0} movimientos</span>
+            <span className="rounded-md bg-blue-500/10 px-3 py-1 text-blue-100 ring-1 ring-blue-300/20">{inventory.activeUserCount?.userName || user?.email}</span>
+            <span className="rounded-md bg-white/10 px-3 py-1 ring-1 ring-white/10">{inventory.userCountCount} conteo{inventory.userCountCount === 1 ? '' : 's'}</span>
           </div>
         </div>
       </section>
 
-      <MobileSearchToolbar
-        active={mobileSearchActive}
-        onBlur={() => setMobileSearchActive(false)}
+      <CountSearchToolbar
+        active={searchActive}
+        canAudit={canAudit}
+        onBlur={() => setSearchActive(false)}
         onClear={() => setSearch('')}
-        onFocus={() => setMobileSearchActive(true)}
+        onCompare={() => navigate(`/inventario/${inventory.id}/comparar`)}
+        onFocus={() => setSearchActive(true)}
         onOpenTools={() => setToolsOpen(true)}
+        onSave={() => handleSave(inventoryStatuses.inProgress)}
+        onSaveAndExit={() => handleSave(inventoryStatuses.saved)}
         search={search}
         setSearch={setSearch}
       />
@@ -258,96 +255,19 @@ export default function CountPage() {
         search={search}
       />
 
-      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/90 p-4 shadow-xl shadow-black/15 backdrop-blur md:sticky md:top-[calc(15.5rem_+_env(safe-area-inset-top))] md:z-20 md:block">
-        <div className="grid gap-3 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1fr)_auto_auto] xl:items-start">
-          <SearchBox search={search} setSearch={setSearch} />
-          <div>
-            <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">Vista global y filtros</div>
-            <FilterChips filterId={filterId} setFilterId={setFilterId} />
-          </div>
-          <Button className="whitespace-nowrap" onClick={() => setCompactView((value) => !value)} tone="light">
-            {compactView ? 'Vista detallada' : 'Vista compacta'}
-          </Button>
-          <Button className="whitespace-nowrap" onClick={clearAllFilters} tone="light">
-            Limpiar filtros
-          </Button>
-        </div>
-      </section>
-
-      <section className="mb-4 hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 md:block xl:hidden">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="font-black text-slate-50">Categorias</h3>
-          <span className="text-sm font-bold text-slate-400">{activeIndex + 1} de {categories.length}</span>
-        </div>
-        <div className="touch-scroll flex gap-2 overflow-x-auto pb-1">
-          {categories.map((category) => {
-            const progress = getCategoryProgress(category)
-            return (
-              <button
-                className={`min-h-12 flex-none rounded-full border px-4 text-sm font-black transition ${
-                  category.id === activeCategory?.id ? 'border-blue-300/40 bg-blue-500/20 text-blue-100' : 'border-white/10 bg-white/5 text-slate-300'
-                }`}
-                key={category.id}
-                onClick={() => setActiveCategoryId(category.id)}
-                type="button"
-              >
-                {category.name} {progress}%
-              </button>
-            )
-          })}
-        </div>
-      </section>
-
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <aside className="hidden xl:block xl:sticky xl:top-[calc(15rem_+_env(safe-area-inset-top))] xl:h-[calc(100dvh-16rem)]">
-          <section className="touch-scroll h-full overflow-y-auto rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15">
-            <h3 className="text-lg font-black text-slate-50">Categorias del PDF</h3>
-            <div className="mt-4 space-y-3">
-              {categories.map((category) => {
-                const progress = getCategoryProgress(category)
-                return (
-                  <button
-                    className={`w-full rounded-xl border p-4 text-left transition ${
-                      category.id === activeCategory?.id ? 'border-blue-300/35 bg-blue-500/15 ring-2 ring-blue-500/10' : 'border-white/10 bg-white/5 hover:bg-white/10'
-                    }`}
-                    key={category.id}
-                    onClick={() => setActiveCategoryId(category.id)}
-                    type="button"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <strong className="break-words text-slate-50">{category.name}</strong>
-                      {progress === 100 ? <CheckCircle2 className="flex-none text-emerald-300" size={20} /> : <Clock3 className="flex-none text-amber-300" size={20} />}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-sm font-bold text-slate-400">
-                      <span>{category.products.length} productos</span>
-                      <span>{progress}%</span>
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950">
-                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} />
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <Button disabled={activeIndex <= 0} onClick={() => goCategory(-1)} tone="light"><ChevronLeft size={18} /> Anterior</Button>
-              <Button disabled={activeIndex >= categories.length - 1} onClick={() => goCategory(1)} tone="light">Siguiente <ChevronRight size={18} /></Button>
-            </div>
-          </section>
-        </aside>
-
-        <section className="min-w-0 scroll-mt-32" ref={productsSectionRef}>
+      <div className="min-w-0">
+        <section className="min-w-0 scroll-mt-28" ref={productsSectionRef}>
           <div className="mb-4 rounded-xl border border-white/10 bg-slate-900/80 p-4 shadow-xl shadow-black/15 sm:p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">
-                  {normalizedSearch ? `${visibleProductRows.length} resultados` : `Categoria activa ${activeIndex + 1} de ${categories.length}`}
+                  {normalizedSearch ? `${visibleProductRows.length} resultados` : globalProductView ? `${visibleProductRows.length} productos visibles` : `Categoria activa ${activeIndex + 1} de ${categories.length}`}
                 </p>
                 <h3 className="mt-1 break-words text-2xl font-black leading-tight text-slate-50 sm:text-3xl">
-                  {normalizedSearch ? 'Resultados de busqueda' : activeCategory?.name}
+                  {normalizedSearch ? 'Resultados de busqueda' : globalProductView ? 'Todos los productos' : activeCategory?.name}
                 </h3>
               </div>
-              {!normalizedSearch && (
+              {!globalProductView && (
                 <Badge tone={getCategoryProgress(activeCategory) === 100 ? 'green' : 'amber'}>
                   {getCategoryProgress(activeCategory) === 100 ? 'Revisada' : 'Pendiente'}
                 </Badge>
@@ -361,7 +281,7 @@ export default function CountPage() {
             <div className="space-y-4">
               {visibleProductRows.map((row) =>
                 compactView ? (
-                  <ProductCompactRow categoryId={row.categoryId} categoryName={row.categoryName} key={`${row.categoryId}-${row.product.id}`} onAdd={handleAdd} product={row.product} showCategory={Boolean(normalizedSearch)} />
+                  <ProductCompactRow categoryId={row.categoryId} categoryName={row.categoryName} key={`${row.categoryId}-${row.product.id}`} onAdd={handleAdd} product={row.product} showCategory={globalProductView} />
                 ) : (
                   <ProductCard
                     categoryId={row.categoryId}
@@ -371,7 +291,7 @@ export default function CountPage() {
                     onDelete={handleDelete}
                     onEdit={handleEdit}
                     product={row.product}
-                    showCategory={Boolean(normalizedSearch)}
+                    showCategory={globalProductView}
                   />
                 ),
               )}
@@ -383,27 +303,34 @@ export default function CountPage() {
   )
 }
 
-function MobileSearchToolbar({ active, onBlur, onClear, onFocus, onOpenTools, search, setSearch }) {
+function CountSearchToolbar({ active, canAudit, onBlur, onClear, onCompare, onFocus, onOpenTools, onSave, onSaveAndExit, search, setSearch }) {
   return (
-    <section className="safe-x sticky top-[calc(5rem_+_env(safe-area-inset-top))] z-20 -mx-3 mb-4 border-y border-white/10 bg-slate-950/95 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur md:hidden">
-      <div className={`flex items-center gap-2 transition-all duration-200 ${active ? 'py-1' : ''}`}>
-        <SearchBox
-          active={active}
-          onBlur={onBlur}
-          onClear={onClear}
-          onFocus={onFocus}
-          search={search}
-          setSearch={setSearch}
-          variant="mobile"
-        />
-        <button
-          aria-label="Abrir herramientas de conteo"
-          className="grid h-11 w-11 flex-none place-items-center rounded-xl border border-white/10 bg-blue-600 text-white shadow-lg shadow-blue-950/25 transition hover:bg-blue-500"
-          onClick={onOpenTools}
-          type="button"
-        >
-          <SlidersHorizontal size={20} />
-        </button>
+    <section className="safe-x sticky top-[calc(5rem_+_env(safe-area-inset-top))] z-20 -mx-3 mb-4 border-y border-white/10 bg-slate-950/95 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur md:mx-0 md:rounded-xl md:border md:px-4">
+      <div className={`grid gap-2 transition-all duration-200 md:grid-cols-[minmax(260px,1fr)_auto] md:items-center ${active ? 'py-1' : ''}`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <SearchBox
+            active={active}
+            onBlur={onBlur}
+            onClear={onClear}
+            onFocus={onFocus}
+            search={search}
+            setSearch={setSearch}
+            variant="mobile"
+          />
+          <button
+            aria-label="Abrir herramientas de conteo"
+            className="grid h-11 w-11 flex-none place-items-center rounded-xl border border-white/10 bg-blue-600 text-white shadow-lg shadow-blue-950/25 transition hover:bg-blue-500 md:h-12 md:w-12"
+            onClick={onOpenTools}
+            type="button"
+          >
+            <SlidersHorizontal size={20} />
+          </button>
+        </div>
+        <div className="hidden items-center gap-2 md:flex">
+          <Button className="whitespace-nowrap" onClick={onSave} tone="blue">Guardar</Button>
+          <Button className="whitespace-nowrap" onClick={onSaveAndExit} tone="dark">Guardar y salir</Button>
+          {canAudit && <Button className="whitespace-nowrap" onClick={onCompare} tone="light">Comparar</Button>}
+        </div>
       </div>
       {active && (
         <div className="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
@@ -504,14 +431,15 @@ function ToolsPanel({
 
   function selectCategory(categoryId) {
     onCategoryChange(categoryId)
+    onFilterChange('all')
     onClose()
     window.setTimeout(onScrollToProducts, 0)
   }
 
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div className="fixed inset-0 z-50">
       <button aria-label="Cerrar herramientas" className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm" onClick={onClose} type="button" />
-      <section className="safe-top safe-bottom absolute inset-y-0 right-0 flex w-[min(92vw,390px)] max-w-full flex-col border-l border-white/10 bg-[#070c15] shadow-2xl shadow-black">
+      <section className="safe-top safe-bottom absolute inset-y-0 right-0 flex w-[min(92vw,430px)] max-w-full flex-col border-l border-white/10 bg-[#070c15] shadow-2xl shadow-black md:w-[430px]">
         <div className="safe-x border-b border-white/10 p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -550,7 +478,10 @@ function ToolsPanel({
                   aria-label="Categoria anterior"
                   className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 disabled:opacity-40"
                   disabled={activeIndex <= 0}
-                  onClick={() => onGoCategory(-1)}
+                  onClick={() => {
+                    onFilterChange('all')
+                    onGoCategory(-1)
+                  }}
                   type="button"
                 >
                   <ChevronLeft size={18} />
@@ -559,7 +490,10 @@ function ToolsPanel({
                   aria-label="Categoria siguiente"
                   className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 disabled:opacity-40"
                   disabled={activeIndex >= categories.length - 1}
-                  onClick={() => onGoCategory(1)}
+                  onClick={() => {
+                    onFilterChange('all')
+                    onGoCategory(1)
+                  }}
                   type="button"
                 >
                   <ChevronRight size={18} />
