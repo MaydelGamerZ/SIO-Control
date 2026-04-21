@@ -13,7 +13,13 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react'
-import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+} from 'firebase/auth'
 import { auth, googleProvider } from './firebase'
 import './App.css'
 
@@ -36,7 +42,15 @@ function getInitials(user) {
     .join('')
 }
 
-function Login({ onLogin, loading, error }) {
+function Login({ onEmailLogin, onGoogleLogin, loading, error }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    onEmailLogin(email, password, 'sign-in')
+  }
+
   return (
     <main className="login-page">
       <section className="login-panel">
@@ -48,10 +62,59 @@ function Login({ onLogin, loading, error }) {
           <p className="eyebrow">SIO Control</p>
           <h1>Inventario seguro para tu operacion</h1>
           <p className="login-copy">
-            Inicia sesion con Google para entrar al panel principal y administrar las secciones del menu.
+            Inicia sesion con tu correo o Google para entrar al panel principal y administrar las secciones del menu.
           </p>
         </div>
-        <button className="google-button" disabled={loading} onClick={onLogin} type="button">
+
+        <form className="login-form" onSubmit={handleSubmit}>
+          <label>
+            Correo
+            <input
+              autoComplete="email"
+              disabled={loading}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="correo@ejemplo.com"
+              required
+              type="email"
+              value={email}
+            />
+          </label>
+          <label>
+            Contrasena
+            <input
+              autoComplete="current-password"
+              disabled={loading}
+              minLength={6}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Minimo 6 caracteres"
+              required
+              type="password"
+              value={password}
+            />
+          </label>
+          <div className="login-actions">
+            <button className="email-button" disabled={loading} type="submit">
+              {loading ? <LoaderCircle className="spin" size={20} /> : null}
+              Iniciar sesion
+            </button>
+            <button
+              className="create-button"
+              disabled={loading}
+              onClick={() => onEmailLogin(email, password, 'sign-up')}
+              type="button"
+            >
+              Crear cuenta
+            </button>
+          </div>
+        </form>
+
+        <div className="login-divider">
+          <span />
+          <p>o</p>
+          <span />
+        </div>
+
+        <button className="google-button" disabled={loading} onClick={onGoogleLogin} type="button">
           {loading ? <LoaderCircle className="spin" size={20} /> : <span className="google-mark">G</span>}
           {loading ? 'Conectando...' : 'Continuar con Google'}
         </button>
@@ -243,6 +306,32 @@ function App() {
     }
   }
 
+  async function handleEmailLogin(email, password, mode) {
+    setAuthError('')
+    setAuthLoading(true)
+
+    try {
+      if (mode === 'sign-up') {
+        await createUserWithEmailAndPassword(auth, email, password)
+      } else {
+        await signInWithEmailAndPassword(auth, email, password)
+      }
+    } catch (error) {
+      const messages = {
+        'auth/email-already-in-use': 'Ese correo ya tiene una cuenta. Usa Iniciar sesion.',
+        'auth/invalid-credential': 'Correo o contrasena incorrectos.',
+        'auth/invalid-email': 'El correo no tiene un formato valido.',
+        'auth/missing-password': 'Escribe tu contrasena.',
+        'auth/operation-not-allowed': 'El login con correo aun no esta habilitado en Firebase Authentication.',
+        'auth/weak-password': 'La contrasena debe tener al menos 6 caracteres.',
+      }
+
+      setAuthError(messages[error.code] || 'No se pudo completar el acceso con correo.')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
   function handleAddSection(label) {
     const cleanLabel = label.trim()
     if (!cleanLabel) return
@@ -269,7 +358,7 @@ function App() {
   }
 
   if (!user) {
-    return <Login error={authError} loading={authLoading} onLogin={handleLogin} />
+    return <Login error={authError} loading={authLoading} onEmailLogin={handleEmailLogin} onGoogleLogin={handleLogin} />
   }
 
   return (

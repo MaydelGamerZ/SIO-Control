@@ -44,6 +44,95 @@
   line-height: 1.55;
 }
 
+.login-form {
+  display: grid;
+  gap: 14px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 8px;
+  color: #b7bbc5;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.login-form input {
+  min-height: 48px;
+  width: 100%;
+  border: 1px solid #2a2b32;
+  border-radius: 8px;
+  background: #050609;
+  color: #fff;
+  padding: 0 14px;
+  outline: none;
+}
+
+.login-form input:focus {
+  border-color: #348fff;
+  box-shadow: 0 0 0 3px rgba(52, 143, 255, 0.18);
+}
+
+.login-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.82fr);
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.email-button,
+.create-button {
+  min-height: 48px;
+  border: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.email-button {
+  background: #348fff;
+  color: #fff;
+}
+
+.create-button {
+  background: #171922;
+  color: #dce7ff;
+  border: 1px solid #2b3346;
+}
+
+.email-button:disabled,
+.create-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.login-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  color: #767b86;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.login-divider span {
+  height: 1px;
+  background: #24252b;
+}
+
+.login-divider p {
+  margin: 0;
+}
+
 .status-pill {
   width: max-content;
   display: inline-flex;
@@ -543,6 +632,10 @@
 @media (max-width: 560px) {
   .login-panel {
     padding: 24px;
+  }
+
+  .login-actions {
+    grid-template-columns: 1fr;
   }
 
   .sidebar:not(.is-collapsed) {
