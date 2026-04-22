@@ -1,26 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
-import { Badge, Button, EmptyState, ErrorState, LoadingState, Metric } from '../components/ui'
+import { Badge, Button, EmptyState, ErrorState, LoadingState, Metric, RealtimeIndicator } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import {
   addCountEntry,
   deleteCountEntry,
-  getInventoryForUser,
-  getLatestInventory,
-  getTodayInventory,
+  subscribeCurrentInventoryForUser,
   updateCountEntry,
   updateInventoryStatus,
 } from '../services/inventoryService'
-import { filterProductRows, formatDateKey, formatNumber, formatTime, getCategoryProgress, getProductStatus, inventoryStatuses, observationOptions, productFilters } from '../utils/inventory'
+import { filterProductRows, formatNumber, formatTime, getCategoryProgress, getProductStatus, inventoryStatuses, observationOptions, productFilters } from '../utils/inventory'
 import { canAuditUser } from '../services/userService'
-
-async function resolveInventory(id, user) {
-  if (id) return getInventoryForUser(id, user)
-  const selectedInventory = (await getTodayInventory(formatDateKey())) || (await getLatestInventory())
-  return selectedInventory?.id ? getInventoryForUser(selectedInventory.id, user) : null
-}
 
 export default function CountPage() {
   const [activeCategoryId, setActiveCategoryId] = useState('')
@@ -31,6 +23,7 @@ export default function CountPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [searchActive, setSearchActive] = useState(false)
+  const [syncStatus, setSyncStatus] = useState('connecting')
   const [toolsOpen, setToolsOpen] = useState(false)
   const productsSectionRef = useRef(null)
   const { id } = useParams()
@@ -39,40 +32,49 @@ export default function CountPage() {
   const navigate = useNavigate()
   const canAudit = canAuditUser(user, profile)
 
-  async function refreshInventory(showLoading = false) {
-    if (showLoading) setLoading(true)
-    setError('')
-    try {
-      const selectedInventory = await resolveInventory(id, user)
-      setInventory(selectedInventory)
-      setActiveCategoryId((current) => current || selectedInventory?.categories?.[0]?.id || '')
-    } catch (loadError) {
-      setError(loadError.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    let active = true
-    async function loadInitialInventory() {
-      try {
-        const selectedInventory = await resolveInventory(id, user)
-        if (!active) return
+    if (!user) return undefined
+
+    const unsubscribe = subscribeCurrentInventoryForUser(
+      id,
+      user,
+      (selectedInventory) => {
         setInventory(selectedInventory)
-        setActiveCategoryId(selectedInventory?.categories?.[0]?.id || '')
+        setActiveCategoryId((current) => {
+          if (selectedInventory?.categories?.some((category) => category.id === current)) return current
+          return selectedInventory?.categories?.[0]?.id || ''
+        })
+        setLoading(false)
+        setSyncStatus(navigator.onLine ? 'synced' : 'offline')
         setError('')
-      } catch (loadError) {
-        if (active) setError(loadError.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    loadInitialInventory()
+      },
+      (loadError) => {
+        setError(loadError.message)
+        setLoading(false)
+        setSyncStatus('offline')
+      },
+    )
+
     return () => {
-      active = false
+      unsubscribe()
     }
   }, [id, user])
+
+  useEffect(() => {
+    function handleOnline() {
+      setSyncStatus('synced')
+    }
+    function handleOffline() {
+      setSyncStatus('offline')
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   useEffect(() => {
     function handleWindowScroll() {
@@ -116,7 +118,6 @@ export default function CountPage() {
     setError('')
     try {
       await addCountEntry(inventory.id, categoryId, productId, values, user)
-      await refreshInventory()
     } catch (saveError) {
       setError(saveError.message)
     }
@@ -125,7 +126,6 @@ export default function CountPage() {
   async function handleEdit(categoryId, productId, entry, values) {
     try {
       await updateCountEntry(inventory.id, categoryId, productId, entry.id, values, user)
-      await refreshInventory()
     } catch (saveError) {
       setError(saveError.message)
     }
@@ -134,7 +134,6 @@ export default function CountPage() {
   async function handleDelete(categoryId, productId, entryId) {
     try {
       await deleteCountEntry(inventory.id, categoryId, productId, entryId, user)
-      await refreshInventory()
     } catch (deleteError) {
       setError(deleteError.message)
     }
@@ -144,7 +143,6 @@ export default function CountPage() {
     if (!inventory?.id) return
     try {
       await updateInventoryStatus(inventory.id, status, user)
-      await refreshInventory()
       if (status === inventoryStatuses.saved) navigate('/inventario/resumen')
     } catch (saveError) {
       setError(saveError.message)
@@ -199,6 +197,7 @@ export default function CountPage() {
             <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Conteo en proceso</p>
             <Badge tone="blue">{inventory.status || inventoryStatuses.inProgress}</Badge>
             <Badge tone="green">Modo individual</Badge>
+            <RealtimeIndicator status={syncStatus} />
           </div>
           <h2 className="mt-2 break-words text-2xl font-black leading-tight tracking-tight text-slate-50 sm:text-3xl">
             Inventario diario - {inventory.fecha || inventory.dateKey}

@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BadgeCheck, CheckCircle2, Edit3, GitCompare, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Trash2, X } from 'lucide-react'
-import { Badge, Button, EmptyState, ErrorState, LoadingState, PageTitle } from '../components/ui'
+import { Badge, Button, EmptyState, ErrorState, LoadingState, PageTitle, RealtimeIndicator } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import {
   addUserCountEntry,
   deleteUserCountEntry,
   generateFinalCount,
-  getInventory,
-  getLatestInventory,
-  getTodayInventory,
   setComparisonProductVerification,
+  subscribeCurrentInventory,
   updateUserCountEntry,
 } from '../services/inventoryService'
-import { flattenProducts, formatDateKey, formatDisplayDate, formatNumber, formatTime, observationOptions } from '../utils/inventory'
+import { flattenProducts, formatDisplayDate, formatNumber, formatTime, observationOptions } from '../utils/inventory'
 
 const comparisonFilters = [
   { id: 'all', label: 'Ver todos' },
@@ -23,11 +21,6 @@ const comparisonFilters = [
   { id: 'validated', label: 'Validados' },
   { id: 'observations', label: 'Con observaciones' },
 ]
-
-async function resolveComparisonInventory(id) {
-  if (id) return getInventory(id)
-  return (await getTodayInventory(formatDateKey())) || (await getLatestInventory())
-}
 
 function makeProductMap(userCount) {
   const map = new Map()
@@ -52,42 +45,56 @@ export default function ComparisonPage() {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [searchActive, setSearchActive] = useState(false)
+  const [syncStatus, setSyncStatus] = useState('connecting')
   const [toolsOpen, setToolsOpen] = useState(false)
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  async function refresh() {
-    setError('')
-    const selectedInventory = await resolveComparisonInventory(id)
-    setInventory(selectedInventory)
-    const first = selectedInventory?.userCounts?.[0]?.id || ''
-    const second = selectedInventory?.userCounts?.[1]?.id || ''
-    setCountAId((current) => current || first)
-    setCountBId((current) => current || second)
-  }
-
   useEffect(() => {
-    let active = true
-    async function load() {
-      setLoading(true)
-      try {
-        const selectedInventory = await resolveComparisonInventory(id)
-        if (!active) return
+    const unsubscribe = subscribeCurrentInventory(
+      id,
+      (selectedInventory) => {
         setInventory(selectedInventory)
-        setCountAId(selectedInventory?.userCounts?.[0]?.id || '')
-        setCountBId(selectedInventory?.userCounts?.[1]?.id || '')
-      } catch (loadError) {
-        if (active) setError(loadError.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    load()
+        setCountAId((current) => {
+          if (selectedInventory?.userCounts?.some((count) => count.id === current)) return current
+          return selectedInventory?.userCounts?.[0]?.id || ''
+        })
+        setCountBId((current) => {
+          if (selectedInventory?.userCounts?.some((count) => count.id === current)) return current
+          return selectedInventory?.userCounts?.[1]?.id || ''
+        })
+        setLoading(false)
+        setSyncStatus(navigator.onLine ? 'synced' : 'offline')
+        setError('')
+      },
+      (loadError) => {
+        setError(loadError.message)
+        setLoading(false)
+        setSyncStatus('offline')
+      },
+    )
+
     return () => {
-      active = false
+      unsubscribe()
     }
   }, [id])
+
+  useEffect(() => {
+    function handleOnline() {
+      setSyncStatus('synced')
+    }
+    function handleOffline() {
+      setSyncStatus('offline')
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   useEffect(() => {
     function handleWindowScroll() {
@@ -169,7 +176,6 @@ export default function ComparisonPage() {
     setSaving(true)
     try {
       await addUserCountEntry(inventory.id, userCountId, row.categoryId, row.productId, values, user)
-      await refresh()
     } catch (saveError) {
       setError(saveError.message)
     } finally {
@@ -181,7 +187,6 @@ export default function ComparisonPage() {
     setSaving(true)
     try {
       await updateUserCountEntry(inventory.id, userCountId, row.categoryId, row.productId, entry.id, values, user)
-      await refresh()
     } catch (saveError) {
       setError(saveError.message)
     } finally {
@@ -193,7 +198,6 @@ export default function ComparisonPage() {
     setSaving(true)
     try {
       await deleteUserCountEntry(inventory.id, userCountId, row.categoryId, row.productId, entryId, user)
-      await refresh()
     } catch (saveError) {
       setError(saveError.message)
     } finally {
@@ -205,7 +209,6 @@ export default function ComparisonPage() {
     setSaving(true)
     try {
       await setComparisonProductVerification(inventory.id, row.productKey, verified, user)
-      await refresh()
     } catch (saveError) {
       setError(saveError.message)
     } finally {
@@ -217,7 +220,6 @@ export default function ComparisonPage() {
     setSaving(true)
     try {
       await generateFinalCount(inventory.id, user, countAId, countBId)
-      await refresh()
     } catch (saveError) {
       setError(saveError.message)
     } finally {
@@ -253,6 +255,7 @@ export default function ComparisonPage() {
               <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Comparacion multiusuario</p>
               <Badge tone="blue">{inventory.status}</Badge>
               <Badge tone="green">{inventory.cedis}</Badge>
+              <RealtimeIndicator status={syncStatus} />
             </div>
             <h2 className="mt-2 break-words text-2xl font-black tracking-tight text-slate-50 sm:text-3xl">
               Validacion {formatDisplayDate(inventory.dateKey)}

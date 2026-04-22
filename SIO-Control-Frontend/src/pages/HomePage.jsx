@@ -1,31 +1,50 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart3, ClipboardCheck, FileSearch, FileText, History, Layers3, PackageCheck, Upload } from 'lucide-react'
-import { Button, EmptyState, ErrorState, Kpi, LoadingState } from '../components/ui'
-import { getTodayInventory } from '../services/inventoryService'
+import { Button, EmptyState, ErrorState, Kpi, LoadingState, RealtimeIndicator } from '../components/ui'
+import { subscribeTodayInventory } from '../services/inventoryService'
 import { formatDateKey, formatDisplayDate, formatNumber, formatTime, getCategoryProgress } from '../utils/inventory'
 
 export default function HomePage() {
   const [error, setError] = useState('')
   const [inventory, setInventory] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [syncStatus, setSyncStatus] = useState('connecting')
   const navigate = useNavigate()
 
   useEffect(() => {
-    let active = true
-    async function loadHome() {
-      try {
-        const todayInventory = await getTodayInventory(formatDateKey())
-        if (active) setInventory(todayInventory)
-      } catch (loadError) {
-        if (active) setError(loadError.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    loadHome()
+    const unsubscribe = subscribeTodayInventory(
+      formatDateKey(),
+      (todayInventory) => {
+        setInventory(todayInventory)
+        setLoading(false)
+        setSyncStatus(navigator.onLine ? 'synced' : 'offline')
+        setError('')
+      },
+      (loadError) => {
+        setError(loadError.message)
+        setLoading(false)
+        setSyncStatus('offline')
+      },
+    )
     return () => {
-      active = false
+      unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    function handleOnline() {
+      setSyncStatus('synced')
+    }
+    function handleOffline() {
+      setSyncStatus('offline')
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     }
   }, [])
 
@@ -49,6 +68,7 @@ export default function HomePage() {
             <Button onClick={() => navigate('/inventario/conteo')} tone="blue"><ClipboardCheck size={18} />Ir a conteo</Button>
             <Button onClick={() => navigate('/inventario/cargar')} tone="light"><Upload size={18} />Cargar PDF</Button>
             <Button onClick={() => navigate('/inventario/historial')} tone="light"><History size={18} />Historial</Button>
+            <RealtimeIndicator status={syncStatus} />
           </div>
         </div>
       </section>

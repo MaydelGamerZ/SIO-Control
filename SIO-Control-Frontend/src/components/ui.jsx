@@ -103,6 +103,25 @@ export function ErrorState({ message }) {
   return <div className="mb-4 rounded-xl border border-rose-400/25 bg-rose-500/10 p-4 font-bold text-rose-100">{message}</div>
 }
 
+export function RealtimeIndicator({ status = 'synced' }) {
+  const states = {
+    connecting: 'bg-blue-500/10 text-blue-200 ring-blue-300/20',
+    offline: 'bg-amber-400/10 text-amber-200 ring-amber-300/25',
+    synced: 'bg-emerald-400/10 text-emerald-200 ring-emerald-300/20',
+  }
+  const labels = {
+    connecting: 'Conectando',
+    offline: 'Sin conexion',
+    synced: 'Sincronizado',
+  }
+
+  return (
+    <span className={`inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-black uppercase tracking-[0.14em] ring-1 ${states[status] || states.synced}`}>
+      {labels[status] || labels.synced}
+    </span>
+  )
+}
+
 export function EmptyState({ action, description, icon: Icon, title }) {
   return (
     <section className="rounded-xl border border-dashed border-white/15 bg-slate-900/60 p-6 text-center sm:p-8">

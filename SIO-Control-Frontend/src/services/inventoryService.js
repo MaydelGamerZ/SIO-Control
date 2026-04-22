@@ -5,6 +5,7 @@ import {
   getDoc,
   getDocs,
   limit,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -141,8 +142,12 @@ async function getRawInventoryDocument(inventoryId) {
   return { id: snapshot.id, ...snapshot.data() }
 }
 
-async function getInventoryDataWithUserCount(inventoryId, user) {
-  const data = await getRawInventoryDocument(inventoryId)
+function normalizeInventorySnapshot(snapshot) {
+  if (!snapshot.exists()) return null
+  return normalizeInventory({ id: snapshot.id, ...snapshot.data() })
+}
+
+async function ensureUserCountForInventoryData(inventoryId, data, user) {
   const userCounts = Array.isArray(data.userCounts) ? data.userCounts.map((count, index) => normalizeUserCount(count, data.categories || [], index)) : []
   const userKey = getUserKey(user)
   let userIndex = userCounts.findIndex((count) => getCountUserKey(count) === userKey)
@@ -167,6 +172,11 @@ async function getInventoryDataWithUserCount(inventoryId, user) {
     userCounts,
     userIndex,
   }
+}
+
+async function getInventoryDataWithUserCount(inventoryId, user) {
+  const data = await getRawInventoryDocument(inventoryId)
+  return ensureUserCountForInventoryData(inventoryId, data, user)
 }
 
 export async function createInventoryFromParsed(parsedInventory, user) {
@@ -230,6 +240,155 @@ export async function getLatestInventory() {
 export async function listInventories() {
   const snapshot = await getDocs(query(inventoryCollection, orderBy('updatedAt', 'desc')))
   return snapshot.docs.map((document) => normalizeInventory({ id: document.id, ...document.data() }))
+}
+
+export function subscribeInventory(inventoryId, onData, onError) {
+  if (!inventoryId) {
+    onData(null)
+    return () => {}
+  }
+
+  return onSnapshot(
+    doc(db, 'inventory', inventoryId),
+    (snapshot) => onData(normalizeInventorySnapshot(snapshot)),
+    (error) => onError?.(error),
+  )
+}
+
+export function subscribeInventoryForUser(inventoryId, user, onData, onError) {
+  if (!inventoryId || !user) {
+    onData(null)
+    return () => {}
+  }
+
+  let active = true
+  const unsubscribe = onSnapshot(
+    doc(db, 'inventory', inventoryId),
+    async (snapshot) => {
+      if (!snapshot.exists()) {
+        onData(null)
+        return
+      }
+
+      try {
+        const rawInventory = { id: snapshot.id, ...snapshot.data() }
+        const { data, userCount } = await ensureUserCountForInventoryData(snapshot.id, rawInventory, user)
+        if (!active) return
+        onData(normalizeInventory({
+          ...data,
+          activeUserCount: userCount,
+          categories: userCount.categories,
+          useUserCountSummary: true,
+        }))
+      } catch (error) {
+        if (active) onError?.(error)
+      }
+    },
+    (error) => onError?.(error),
+  )
+
+  return () => {
+    active = false
+    unsubscribe()
+  }
+}
+
+function subscribeCurrentInventoryId(onId, onError) {
+  let fallbackUnsubscribe = null
+  let currentId = ''
+  const emitId = (inventoryId) => {
+    if (inventoryId === currentId) return
+    currentId = inventoryId
+    onId(inventoryId)
+  }
+
+  const todayUnsubscribe = onSnapshot(
+    query(inventoryCollection, where('dateKey', '==', formatDateKey()), limit(1)),
+    (snapshot) => {
+      if (!snapshot.empty) {
+        fallbackUnsubscribe?.()
+        fallbackUnsubscribe = null
+        emitId(snapshot.docs[0].id)
+        return
+      }
+
+      if (fallbackUnsubscribe) return
+      fallbackUnsubscribe = onSnapshot(
+        query(inventoryCollection, orderBy('updatedAt', 'desc'), limit(1)),
+        (latestSnapshot) => emitId(latestSnapshot.empty ? '' : latestSnapshot.docs[0].id),
+        (error) => onError?.(error),
+      )
+    },
+    (error) => onError?.(error),
+  )
+
+  return () => {
+    todayUnsubscribe()
+    fallbackUnsubscribe?.()
+  }
+}
+
+export function subscribeCurrentInventory(inventoryId, onData, onError) {
+  if (inventoryId) return subscribeInventory(inventoryId, onData, onError)
+
+  let inventoryUnsubscribe = null
+  const idUnsubscribe = subscribeCurrentInventoryId((nextInventoryId) => {
+    inventoryUnsubscribe?.()
+    if (!nextInventoryId) {
+      inventoryUnsubscribe = null
+      onData(null)
+      return
+    }
+    inventoryUnsubscribe = subscribeInventory(nextInventoryId, onData, onError)
+  }, onError)
+
+  return () => {
+    idUnsubscribe()
+    inventoryUnsubscribe?.()
+  }
+}
+
+export function subscribeCurrentInventoryForUser(inventoryId, user, onData, onError) {
+  if (inventoryId) return subscribeInventoryForUser(inventoryId, user, onData, onError)
+
+  let inventoryUnsubscribe = null
+  const idUnsubscribe = subscribeCurrentInventoryId((nextInventoryId) => {
+    inventoryUnsubscribe?.()
+    if (!nextInventoryId) {
+      inventoryUnsubscribe = null
+      onData(null)
+      return
+    }
+    inventoryUnsubscribe = subscribeInventoryForUser(nextInventoryId, user, onData, onError)
+  }, onError)
+
+  return () => {
+    idUnsubscribe()
+    inventoryUnsubscribe?.()
+  }
+}
+
+export function subscribeTodayInventory(dateKey = formatDateKey(), onData, onError) {
+  return onSnapshot(
+    query(inventoryCollection, where('dateKey', '==', dateKey), limit(1)),
+    (snapshot) => {
+      if (snapshot.empty) {
+        onData(null)
+        return
+      }
+      const document = snapshot.docs[0]
+      onData(normalizeInventory({ id: document.id, ...document.data() }))
+    },
+    (error) => onError?.(error),
+  )
+}
+
+export function subscribeInventories(onData, onError) {
+  return onSnapshot(
+    query(inventoryCollection, orderBy('updatedAt', 'desc')),
+    (snapshot) => onData(snapshot.docs.map((document) => normalizeInventory({ id: document.id, ...document.data() }))),
+    (error) => onError?.(error),
+  )
 }
 
 export async function addCountEntry(inventoryId, categoryId, productId, entry, user) {

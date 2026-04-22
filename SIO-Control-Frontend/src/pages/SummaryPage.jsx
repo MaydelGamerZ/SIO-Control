@@ -1,33 +1,50 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart3, ClipboardCheck, Clock3, FileSearch, FileText, Layers3, PackageCheck, Upload } from 'lucide-react'
-import { Button, EmptyState, ErrorState, Kpi, LoadingState, PageTitle } from '../components/ui'
-import { getTodayInventory } from '../services/inventoryService'
+import { Button, EmptyState, ErrorState, Kpi, LoadingState, PageTitle, RealtimeIndicator } from '../components/ui'
+import { subscribeTodayInventory } from '../services/inventoryService'
 import { formatDateKey, formatDisplayDate, formatNumber, formatTime, getCategoryProgress } from '../utils/inventory'
 
 export default function SummaryPage() {
   const [error, setError] = useState('')
   const [inventory, setInventory] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [syncStatus, setSyncStatus] = useState('connecting')
   const navigate = useNavigate()
 
   useEffect(() => {
-    let active = true
-    async function loadInventory() {
-      setLoading(true)
-      setError('')
-      try {
-        const todayInventory = await getTodayInventory(formatDateKey())
-        if (active) setInventory(todayInventory)
-      } catch (loadError) {
-        if (active) setError(loadError.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    loadInventory()
+    const unsubscribe = subscribeTodayInventory(
+      formatDateKey(),
+      (todayInventory) => {
+        setInventory(todayInventory)
+        setLoading(false)
+        setSyncStatus(navigator.onLine ? 'synced' : 'offline')
+        setError('')
+      },
+      (loadError) => {
+        setError(loadError.message)
+        setLoading(false)
+        setSyncStatus('offline')
+      },
+    )
     return () => {
-      active = false
+      unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    function handleOnline() {
+      setSyncStatus('synced')
+    }
+    function handleOffline() {
+      setSyncStatus('offline')
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     }
   }, [])
 
@@ -44,13 +61,13 @@ export default function SummaryPage() {
           title="No hay inventario del dia"
         />
       ) : (
-        <InventorySummary inventory={inventory} />
+        <InventorySummary inventory={inventory} syncStatus={syncStatus} />
       )}
     </>
   )
 }
 
-function InventorySummary({ inventory }) {
+function InventorySummary({ inventory, syncStatus }) {
   const navigate = useNavigate()
   const updatedAt = inventory.updatedAt?.toDate ? inventory.updatedAt.toDate() : new Date()
 
@@ -62,6 +79,7 @@ function InventorySummary({ inventory }) {
             <Button onClick={() => navigate('/inventario/cargar')} tone="blue"><Upload className="mr-2 inline" size={18} />Cargar PDF</Button>
             <Button onClick={() => navigate('/inventario/conteo')} tone="light"><ClipboardCheck className="mr-2 inline" size={18} />Continuar conteo</Button>
             <Button onClick={() => navigate('/inventario/historial')} tone="light">Ver historial</Button>
+            <RealtimeIndicator status={syncStatus} />
           </div>
         }
         eyebrow="Inventario actual"

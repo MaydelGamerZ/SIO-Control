@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BadgeCheck, BarChart3, ClipboardCheck, FileText, GitCompare, RotateCcw } from 'lucide-react'
-import { Badge, Button, ErrorState, Kpi, LoadingState, Metric, PageTitle } from '../components/ui'
-import { getInventory } from '../services/inventoryService'
+import { BadgeCheck, BarChart3, ClipboardCheck, Download, FileText, GitCompare, RotateCcw } from 'lucide-react'
+import { Badge, Button, ErrorState, Kpi, LoadingState, Metric, PageTitle, RealtimeIndicator } from '../components/ui'
+import { subscribeInventory } from '../services/inventoryService'
+import { exportInventoryToPdf } from '../services/inventoryPdfExport'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { canAuditUser } from '../services/userService'
@@ -12,6 +13,7 @@ export default function InventoryDetailPage() {
   const [error, setError] = useState('')
   const [inventory, setInventory] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [syncStatus, setSyncStatus] = useState('connecting')
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -19,24 +21,40 @@ export default function InventoryDetailPage() {
   const canAudit = canAuditUser(user, profile)
 
   useEffect(() => {
-    let active = true
-    async function loadInventory() {
-      setLoading(true)
-      setError('')
-      try {
-        const selectedInventory = await getInventory(id)
-        if (active) setInventory(selectedInventory)
-      } catch (loadError) {
-        if (active) setError(loadError.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    loadInventory()
+    const unsubscribe = subscribeInventory(
+      id,
+      (selectedInventory) => {
+        setInventory(selectedInventory)
+        setLoading(false)
+        setSyncStatus(navigator.onLine ? 'synced' : 'offline')
+        setError('')
+      },
+      (loadError) => {
+        setError(loadError.message)
+        setLoading(false)
+        setSyncStatus('offline')
+      },
+    )
     return () => {
-      active = false
+      unsubscribe()
     }
   }, [id])
+
+  useEffect(() => {
+    function handleOnline() {
+      setSyncStatus('synced')
+    }
+    function handleOffline() {
+      setSyncStatus('offline')
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   if (loading) return <LoadingState label="Cargando detalle" />
   if (!inventory) return <ErrorState message={error || 'Inventario no encontrado'} />
@@ -49,6 +67,8 @@ export default function InventoryDetailPage() {
             <Button onClick={() => navigate('/inventario/historial')} tone="light"><RotateCcw className="mr-2 inline" size={18} />Volver al historial</Button>
             <Button onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="dark">Editar conteo</Button>
             {canAudit && <Button onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="blue"><GitCompare className="mr-2 inline" size={18} />Comparar</Button>}
+            <Button onClick={() => exportInventoryToPdf(inventory)} tone="light"><Download className="mr-2 inline" size={18} />Exportar PDF</Button>
+            <RealtimeIndicator status={syncStatus} />
           </div>
         }
         eyebrow="Detalle auditado"

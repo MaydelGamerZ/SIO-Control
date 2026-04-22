@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArchiveRestore, Edit3, Eye, Filter, GitCompare } from 'lucide-react'
-import { Badge, Button, EmptyState, ErrorState, LoadingState, PageTitle } from '../components/ui'
+import { ArchiveRestore, Download, Edit3, Eye, Filter, GitCompare } from 'lucide-react'
+import { Badge, Button, EmptyState, ErrorState, LoadingState, PageTitle, RealtimeIndicator } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
-import { listInventories, updateInventoryStatus } from '../services/inventoryService'
+import { subscribeInventories, updateInventoryStatus } from '../services/inventoryService'
+import { exportInventoryToPdf } from '../services/inventoryPdfExport'
 import { canAuditUser } from '../services/userService'
 import { formatDisplayDate, formatNumber, inventoryStatuses } from '../utils/inventory'
 
@@ -14,41 +15,45 @@ export default function HistoryPage() {
   const [error, setError] = useState('')
   const [inventories, setInventories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [syncStatus, setSyncStatus] = useState('connecting')
   const [textFilter, setTextFilter] = useState('')
   const { user } = useAuth()
   const { profile } = useUserProfile()
   const navigate = useNavigate()
   const canAudit = canAuditUser(user, profile)
 
-  async function refreshInventories() {
-    setLoading(true)
-    setError('')
-    try {
-      setInventories(await listInventories())
-    } catch (loadError) {
-      setError(loadError.message)
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    const unsubscribe = subscribeInventories(
+      (savedInventories) => {
+        setInventories(savedInventories)
+        setLoading(false)
+        setSyncStatus(navigator.onLine ? 'synced' : 'offline')
+        setError('')
+      },
+      (loadError) => {
+        setError(loadError.message)
+        setLoading(false)
+        setSyncStatus('offline')
+      },
+    )
+    return () => {
+      unsubscribe()
     }
-  }
+  }, [])
 
   useEffect(() => {
-    let active = true
-    async function loadInitialInventories() {
-      try {
-        const savedInventories = await listInventories()
-        if (!active) return
-        setInventories(savedInventories)
-        setError('')
-      } catch (loadError) {
-        if (active) setError(loadError.message)
-      } finally {
-        if (active) setLoading(false)
-      }
+    function handleOnline() {
+      setSyncStatus('synced')
     }
-    loadInitialInventories()
+    function handleOffline() {
+      setSyncStatus('offline')
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
     return () => {
-      active = false
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     }
   }, [])
 
@@ -64,7 +69,6 @@ export default function HistoryPage() {
   async function reopenInventory(id) {
     try {
       await updateInventoryStatus(id, inventoryStatuses.reopened, user)
-      await refreshInventories()
     } catch (reopenError) {
       setError(reopenError.message)
     }
@@ -74,7 +78,7 @@ export default function HistoryPage() {
 
   return (
     <>
-      <PageTitle eyebrow="Auditoria" title="Historial de inventarios">
+      <PageTitle action={<RealtimeIndicator status={syncStatus} />} eyebrow="Auditoria" title="Historial de inventarios">
         Consulta inventarios guardados, reabre conteos y revisa diferencias con trazabilidad.
       </PageTitle>
       <ErrorState message={error} />
@@ -133,7 +137,7 @@ export default function HistoryPage() {
                 <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="light"><Edit3 size={16} />Editar</Button>
                 {canAudit && <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light"><GitCompare size={16} />Comparar</Button>}
                 <Button className="w-full" onClick={() => reopenInventory(inventory.id)} tone="light"><ArchiveRestore size={16} />Reabrir</Button>
-                <Button className="w-full" onClick={() => window.print()} tone="light">Exportar</Button>
+                <Button className="w-full" onClick={() => exportInventoryToPdf(inventory)} tone="light"><Download size={16} />Exportar PDF</Button>
               </div>
             </article>
           ))}
