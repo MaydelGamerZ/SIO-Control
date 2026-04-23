@@ -1,0 +1,111 @@
+@if (loading()) {
+  <app-loading-state label="Cargando historial"></app-loading-state>
+} @else {
+  <app-page-header
+    [eyebrow]="auth.canAudit() ? 'Historial inteligente' : 'Historial de conteos'"
+    [title]="auth.canAudit() ? 'Historial global de inventarios' : 'Inventarios disponibles'"
+    [description]="auth.canAudit()
+      ? 'Filtra, compara, exporta y consulta inventarios con trazabilidad operativa.'
+      : 'Consulta inventarios disponibles y continua tus capturas.'"
+  >
+    <div actions>
+      <app-realtime-indicator [status]="realtime.status()"></app-realtime-indicator>
+      @if (auth.canAudit()) {
+        <button class="btn btn-outline-secondary" type="button" (click)="exportService.exportInventoriesSummaryToExcel(filteredInventories)">Exportar resumen</button>
+      }
+    </div>
+  </app-page-header>
+
+  <app-error-state [message]="error()"></app-error-state>
+
+  <section class="card border-0 shadow-sm">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-6 col-xl-3">
+          <input class="form-control" type="date" [ngModel]="dateFilter()" (ngModelChange)="dateFilter.set($event)" />
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <input class="form-control" placeholder="CEDIS" [ngModel]="cedisFilter()" (ngModelChange)="cedisFilter.set($event)" />
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <select class="form-select" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+            <option value="all">Todos los estados</option>
+            @for (status of statuses; track status) {
+              <option [value]="status">{{ status }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <input class="form-control" placeholder="Busqueda global" [ngModel]="textFilter()" (ngModelChange)="textFilter.set($event)" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="row g-4 mt-1">
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-archive'" [label]="'Inventarios'" [tone]="'primary'" [value]="formatNumber(filteredInventories.length)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-check2-circle'" [label]="'Validados'" [tone]="'success'" [value]="formatNumber(summary.validated)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-clipboard-check'" [label]="'Total contado'" [tone]="'secondary'" [value]="formatNumber(summary.totalCounted)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-arrow-left-right'" [label]="'Diferencia neta'" [tone]="summary.difference === 0 ? 'success' : 'warning'" [value]="formatNumber(summary.difference)"></app-stat-card>
+    </div>
+  </div>
+
+  @if (!filteredInventories.length) {
+    <div class="mt-4">
+      <app-empty-state
+        [description]="'Ajusta filtros o carga inventarios para consulta y auditoria.'"
+        [title]="'Sin inventarios visibles'"
+      ></app-empty-state>
+    </div>
+  } @else {
+    <section class="card border-0 shadow-sm mt-4">
+      <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>CEDIS</th>
+              <th>Estado</th>
+              <th>Productos</th>
+              <th>Contado</th>
+              <th>Diferencia</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (inventory of filteredInventories; track inventory.id) {
+              <tr>
+                <td class="fw-semibold">{{ formatDisplayDate(inventory.dateKey) }}</td>
+                <td>{{ inventory.cedis }}</td>
+                <td><span class="badge text-bg-primary">{{ inventory.status }}</span></td>
+                <td>{{ formatNumber(inventory.totalProducts) }}</td>
+                <td>{{ formatNumber(inventory.finalCount?.totalCounted ?? inventory.totalCounted) }}</td>
+                <td>{{ formatNumber(inventory.finalCount?.difference ?? inventory.difference) }}</td>
+                <td class="text-end">
+                  <div class="d-flex flex-wrap gap-2 justify-content-end">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" (click)="goToInventory(inventory.id)">Detalle</button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" (click)="goToInventory(inventory.id, 'editar')">Editar</button>
+                    @if (auth.canAudit()) {
+                      <button class="btn btn-outline-secondary btn-sm" type="button" (click)="goToInventory(inventory.id, 'comparar')">Comparar</button>
+                      <button class="btn btn-outline-secondary btn-sm" type="button" (click)="goToInventory(inventory.id, 'versiones')">Versiones</button>
+                      <button class="btn btn-outline-dark btn-sm" type="button" (click)="exportService.exportInventoryToPdf(inventory)">PDF</button>
+                      <button class="btn btn-outline-dark btn-sm" type="button" (click)="exportService.exportInventoryToExcel(inventory)">XLS</button>
+                      <button class="btn btn-outline-warning btn-sm" type="button" (click)="reopenInventory(inventory.id)">Reabrir</button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+}

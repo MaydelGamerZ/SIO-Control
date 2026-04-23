@@ -1,0 +1,86 @@
+@if (loading()) {
+  <app-loading-state label="Cargando versiones"></app-loading-state>
+} @else if (!inventory()) {
+  <app-error-state [message]="error() || 'Inventario no encontrado'"></app-error-state>
+} @else {
+  <app-page-header
+    [eyebrow]="'Control de versiones'"
+    [title]="'Versiones ' + formatDisplayDate(inventory()?.dateKey)"
+    [description]="'Consulta, compara y restaura snapshots operativos del inventario.'"
+  >
+    <div actions>
+      <app-realtime-indicator [status]="realtime.status()"></app-realtime-indicator>
+      <a class="btn btn-outline-secondary" [routerLink]="['/inventario', inventory()?.id]">Detalle</a>
+    </div>
+  </app-page-header>
+
+  <app-error-state [message]="error()"></app-error-state>
+
+  @if (!versions.length) {
+    <app-empty-state [description]="'Este inventario todavia no tiene versiones registradas.'" [title]="'Sin versiones'"></app-empty-state>
+  } @else {
+    <div class="row g-4">
+      <div class="col-12 col-xl-7">
+        <div class="d-grid gap-3">
+          @for (version of versions.slice().reverse(); track version.id) {
+            <article class="card border-0 shadow-sm">
+              <div class="card-body">
+                <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                  <div>
+                    <div class="d-flex gap-2 flex-wrap">
+                      <span class="badge text-bg-primary">{{ version.type }}</span>
+                      <span class="badge text-bg-secondary">{{ version.status }}</span>
+                    </div>
+                    <h2 class="h4 fw-bold mt-3">{{ version.label }}</h2>
+                    <div class="small text-secondary">{{ version.createdBy?.name || 'Sistema' }} · {{ formatTime(version.createdAt) }}</div>
+                  </div>
+                  <button class="btn btn-outline-secondary" type="button" [disabled]="readOnly" (click)="restore(version.id)">Restaurar</button>
+                </div>
+
+                <div class="row g-3 mt-2">
+                  <div class="col-12 col-md-4"><strong>Total contado:</strong> {{ formatNumber(version.totalCounted || 0) }}</div>
+                  <div class="col-12 col-md-4"><strong>Diferencia:</strong> {{ formatNumber(version.difference || 0) }}</div>
+                  <div class="col-12 col-md-4"><strong>Avance:</strong> {{ version.progress || 0 }}%</div>
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-5">
+        <section class="card border-0 shadow-sm">
+          <div class="card-body">
+            <div class="small text-uppercase fw-semibold text-secondary">Comparador</div>
+            <h2 class="h4 fw-bold mt-2">Versiones</h2>
+
+            <div class="d-grid gap-3 mt-4">
+              <select class="form-select" [ngModel]="selectedA()" (ngModelChange)="selectedA.set($event)">
+                <option value="">Version base</option>
+                @for (version of versions; track version.id) {
+                  <option [value]="version.id">{{ version.label }}</option>
+                }
+              </select>
+              <select class="form-select" [ngModel]="selectedB()" (ngModelChange)="selectedB.set($event)">
+                <option value="">Version a comparar</option>
+                @for (version of versions; track version.id) {
+                  <option [value]="version.id">{{ version.label }}</option>
+                }
+              </select>
+            </div>
+
+            @if (comparison) {
+              <div class="row g-3 mt-3">
+                <div class="col-12 col-md-4"><strong>Cambio total:</strong> {{ formatNumber(comparison.totalDelta) }}</div>
+                <div class="col-12 col-md-4"><strong>Cambio dif.:</strong> {{ formatNumber(comparison.differenceDelta) }}</div>
+                <div class="col-12 col-md-4"><strong>Cambio avance:</strong> {{ comparison.progressDelta }}%</div>
+              </div>
+            } @else {
+              <div class="alert alert-light border mt-4 mb-0">Selecciona dos versiones para comparar sus totales.</div>
+            }
+          </div>
+        </section>
+      </div>
+    </div>
+  }
+}

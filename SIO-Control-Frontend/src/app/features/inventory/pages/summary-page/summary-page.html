@@ -1,0 +1,108 @@
+@if (loading()) {
+  <app-loading-state label="Cargando resumen del dia"></app-loading-state>
+} @else if (!inventory()) {
+  <app-page-header
+    [eyebrow]="'Resumen del dia'"
+    [title]="'Sin inventario disponible'"
+    [description]="'Aun no existe un inventario del dia para operar en esta sede.'"
+  ></app-page-header>
+  <app-empty-state
+    [description]="auth.canAudit()
+      ? 'Carga el PDF de inventario para activar el flujo operativo.'
+      : 'Espera a que un auditor cargue el inventario diario.'"
+    [title]="'No hay inventario activo'"
+  >
+    @if (auth.canAudit()) {
+      <a action class="btn btn-primary" routerLink="/inventario/cargar">Cargar PDF</a>
+    }
+  </app-empty-state>
+} @else {
+  <app-page-header
+    [eyebrow]="'Resumen del dia'"
+    [title]="'Inventario ' + formatDisplayDate(inventory()?.dateKey)"
+    [description]="'Vista ejecutiva del estado actual del inventario, los participantes y las acciones disponibles.'"
+  >
+    <div actions>
+      <app-realtime-indicator [status]="realtime.status()"></app-realtime-indicator>
+      <a class="btn btn-primary" [routerLink]="['/inventario', inventory()?.id, 'editar']">Abrir conteo</a>
+      @if (auth.canAudit()) {
+        <a class="btn btn-outline-secondary" [routerLink]="['/inventario', inventory()?.id, 'comparar']">Comparar</a>
+      }
+    </div>
+  </app-page-header>
+
+  <app-error-state [message]="error()"></app-error-state>
+
+  @if (readOnly) {
+    <div class="alert alert-warning border-0 shadow-sm">
+      El inventario esta en estado de solo lectura. Las acciones principales cambian a consulta, trazabilidad y exportacion.
+    </div>
+  }
+
+  <div class="row g-4">
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-building'" [label]="'CEDIS'" [tone]="'primary'" [value]="inventory()?.cedis"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-box-seam'" [label]="'Productos'" [tone]="'secondary'" [value]="formatNumber(inventory()?.totalProducts)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-clipboard-check'" [label]="'Total contado'" [tone]="'success'" [value]="formatNumber(inventory()?.finalCount?.totalCounted ?? inventory()?.totalCounted)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-arrow-left-right'" [label]="'Diferencia'" [tone]="(inventory()?.finalCount?.difference ?? inventory()?.difference) === 0 ? 'success' : 'warning'" [value]="formatNumber(inventory()?.finalCount?.difference ?? inventory()?.difference)"></app-stat-card>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-12 col-xl-7">
+      <section class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="small text-uppercase fw-semibold text-secondary">Participantes</div>
+          <h2 class="h4 fw-bold mt-2">Estado por usuario</h2>
+
+          <div class="row g-3 mt-1">
+            @for (count of participants; track count.id) {
+              <div class="col-12 col-md-6">
+                <article class="border rounded-4 p-3 h-100">
+                  <div class="d-flex justify-content-between gap-3">
+                    <div>
+                      <div class="fw-bold">{{ count.userName }}</div>
+                      <div class="small text-secondary">{{ count.userEmail }}</div>
+                    </div>
+                    <span class="badge" [ngClass]="count.status === 'guardado' ? 'text-bg-success' : 'text-bg-primary'">{{ count.status }}</span>
+                  </div>
+                  <div class="progress mt-3">
+                    <div class="progress-bar" [style.width.%]="count.progress || 0"></div>
+                  </div>
+                  <div class="small text-secondary mt-2">{{ count.countedProducts }}/{{ count.totalProducts }} productos</div>
+                </article>
+              </div>
+            }
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-12 col-xl-5">
+      <section class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="small text-uppercase fw-semibold text-secondary">Acciones</div>
+          <h2 class="h4 fw-bold mt-2">Flujo operativo</h2>
+
+          <div class="d-grid gap-2 mt-4">
+            <a class="btn btn-primary" [routerLink]="['/inventario', inventory()?.id, 'editar']">Continuar conteo</a>
+            <a class="btn btn-outline-secondary" [routerLink]="['/inventario', inventory()?.id]">Ver detalle</a>
+            <a class="btn btn-outline-secondary" routerLink="/inventario/historial">Ir al historial</a>
+            @if (auth.canAudit()) {
+              <a class="btn btn-outline-secondary" [routerLink]="['/inventario', inventory()?.id, 'comparar']">Comparar conteos</a>
+              <button class="btn btn-dark" type="button" (click)="exportService.exportInventoryToPdf(inventory())">Exportar PDF</button>
+              <button class="btn btn-dark" type="button" (click)="exportService.exportInventoryToExcel(inventory())">Exportar XLS</button>
+              <button class="btn btn-outline-warning" type="button" (click)="reopenInventory()">Reabrir inventario</button>
+            }
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+}

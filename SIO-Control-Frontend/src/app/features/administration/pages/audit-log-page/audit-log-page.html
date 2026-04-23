@@ -1,0 +1,92 @@
+@if (loading()) {
+  <app-loading-state label="Cargando bitacora"></app-loading-state>
+} @else {
+  <app-page-header
+    [eyebrow]="'Trazabilidad'"
+    [title]="'Bitacora completa'"
+    [description]="'Registro operativo de conteos, ediciones, eliminaciones, validaciones, restauraciones y cambios de estado.'"
+  >
+    <div actions>
+      <app-realtime-indicator [status]="realtime.status()"></app-realtime-indicator>
+    </div>
+  </app-page-header>
+
+  <app-error-state [message]="error()"></app-error-state>
+
+  <section class="card border-0 shadow-sm">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-xl-3">
+          <input class="form-control" placeholder="Buscar en toda la bitacora" [ngModel]="search()" (ngModelChange)="search.set($event)" />
+        </div>
+        <div class="col-12 col-md-4 col-xl-2">
+          <input class="form-control" type="date" [ngModel]="dateFilter()" (ngModelChange)="dateFilter.set($event)" />
+        </div>
+        <div class="col-12 col-md-4 col-xl-3">
+          <input class="form-control" placeholder="Usuario o correo" [ngModel]="userFilter()" (ngModelChange)="userFilter.set($event)" />
+        </div>
+        <div class="col-12 col-md-4 col-xl-3">
+          <select class="form-select" [ngModel]="actionFilter()" (ngModelChange)="actionFilter.set($event)">
+            <option value="all">Todas las acciones</option>
+            @for (action of actions; track action) {
+              <option [value]="action">{{ analytics.actionLabel(action) }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-12 col-xl-1">
+          <button class="btn btn-outline-secondary w-100" type="button" (click)="search.set(''); dateFilter.set(''); userFilter.set(''); actionFilter.set('all')">
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  @if (!filteredLogs.length) {
+    <div class="mt-4">
+      <app-empty-state [description]="'No hay eventos que coincidan con los filtros seleccionados.'" [title]="'Sin registros visibles'"></app-empty-state>
+    </div>
+  } @else {
+    <section class="card border-0 shadow-sm mt-4">
+      <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Accion</th>
+              <th>Usuario</th>
+              <th>Inventario</th>
+              <th>Detalle</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (log of filteredLogs; track log.id) {
+              <tr>
+                <td>
+                  <div class="fw-semibold">{{ formatLogDate(log) }}</div>
+                  <div class="small text-secondary">{{ formatTime(log.createdAtLocal || log.createdAt?.toDate?.()) }}</div>
+                </td>
+                <td><span class="badge" [ngClass]="actionTone(log)">{{ analytics.actionLabel(log.action) }}</span></td>
+                <td>
+                  <div class="fw-semibold">{{ log.userName || log.user?.name || 'Sistema' }}</div>
+                  <div class="small text-secondary">{{ log.userEmail || log.user?.email }}</div>
+                </td>
+                <td>
+                  <div class="fw-semibold">{{ log.cedis || 'Sin CEDIS' }}</div>
+                  <div class="small text-secondary">{{ log.dateKey || 'Sin fecha' }} · {{ log.inventoryStatus || 'sin estado' }}</div>
+                </td>
+                <td class="small text-secondary">{{ describeDetails(log.details) }}</td>
+                <td class="text-end">
+                  <button class="btn btn-outline-secondary btn-sm" [disabled]="!log.inventoryId" type="button" (click)="openInventory(log.inventoryId)">
+                    Abrir
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+}

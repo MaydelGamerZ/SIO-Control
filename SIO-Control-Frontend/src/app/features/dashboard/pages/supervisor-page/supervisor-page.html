@@ -1,0 +1,102 @@
+@if (loading()) {
+  <app-loading-state label="Abriendo modo supervisor"></app-loading-state>
+} @else {
+  <app-page-header
+    [eyebrow]="'Control de piso'"
+    [title]="'Modo supervisor en tiempo real'"
+    [description]="'Monitorea usuarios, productos en captura, avance individual y actividad viva de inventarios abiertos.'"
+  >
+    <div actions>
+      <app-realtime-indicator [status]="realtime.status()"></app-realtime-indicator>
+    </div>
+  </app-page-header>
+
+  <app-error-state [message]="error()"></app-error-state>
+
+  <div class="row g-4">
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-people'" [label]="'Usuarios en conteo'" [tone]="'primary'" [value]="formatNumber(activeRows.length)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-clipboard-check'" [label]="'Conteos registrados'" [tone]="'secondary'" [value]="formatNumber(rows.length)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-activity'" [label]="'Avance promedio'" [tone]="'success'" [value]="averageProgress + '%'"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card
+        [icon]="'bi-broadcast'"
+        [label]="'Inventarios activos'"
+        [tone]="'warning'"
+        [value]="formatNumber(inventories().filter((item) => !['validado', 'cerrado'].includes(item.status)).length)"
+      ></app-stat-card>
+    </div>
+  </div>
+
+  <section class="card border-0 shadow-sm mt-4">
+    <div class="card-body">
+      <div class="d-flex align-items-center justify-content-between gap-3 mb-4">
+        <div>
+          <div class="small text-uppercase fw-semibold text-secondary">Usuarios y actividad</div>
+          <h2 class="h4 fw-bold mb-0">Panel operativo vivo</h2>
+        </div>
+        <span class="badge text-bg-success">Actualizacion automatica</span>
+      </div>
+
+      @if (!rows.length) {
+        <app-empty-state
+          [description]="'Cuando los usuarios comiencen conteos apareceran aqui con su avance y producto activo.'"
+          [title]="'Sin usuarios en actividad'"
+        ></app-empty-state>
+      } @else {
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Inventario</th>
+                <th>Producto activo</th>
+                <th>Avance</th>
+                <th>Diferencia</th>
+                <th>Actividad</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows; track row.inventoryId + '-' + (row.userId || row.userEmail)) {
+                <tr>
+                  <td>
+                    <div class="fw-bold">{{ row.userName }}</div>
+                    <div class="small text-secondary">{{ row.userEmail }}</div>
+                  </td>
+                  <td>
+                    <div class="fw-semibold">{{ row.cedis }}</div>
+                    <div class="small text-secondary">{{ formatDisplayDate(row.dateKey) }} · {{ row.inventoryStatus }}</div>
+                  </td>
+                  <td>
+                    <div class="fw-semibold">{{ row.activeProduct?.productName || 'Sin producto activo' }}</div>
+                    <div class="small text-secondary">{{ row.activeProduct?.categoryName || 'Esperando captura' }}</div>
+                  </td>
+                  <td style="min-width: 12rem;">
+                    <div class="progress">
+                      <div class="progress-bar" [style.width.%]="row.progress || 0"></div>
+                    </div>
+                    <div class="small text-secondary mt-2">{{ row.countedProducts }}/{{ row.totalProducts }} productos</div>
+                  </td>
+                  <td class="fw-semibold">{{ formatNumber(row.difference) }}</td>
+                  <td>
+                    <span class="badge text-bg-primary">{{ row.status }}</span>
+                    <div class="small text-secondary mt-2">{{ formatTime(row.lastActivityAt) }}</div>
+                  </td>
+                  <td class="text-end">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" (click)="openInventory(row.inventoryId)">Ver</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </section>
+}

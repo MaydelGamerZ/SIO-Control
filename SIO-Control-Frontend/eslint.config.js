@@ -1,29 +1,45 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import { defineConfig, globalIgnores } from 'eslint/config'
+// @ts-check
+const eslint = require('@eslint/js');
+const { defineConfig } = require('eslint/config');
+const tseslint = require('typescript-eslint');
+const angular = require('angular-eslint');
 
-export default defineConfig([
-  globalIgnores(['dist']),
+module.exports = defineConfig([
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.ts'],
     extends: [
-      js.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
+      eslint.configs.recommended,
+      tseslint.configs.recommended,
+      tseslint.configs.stylistic,
+      angular.configs.tsRecommended,
     ],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-      parserOptions: {
-        ecmaVersion: 'latest',
-        ecmaFeatures: { jsx: true },
-        sourceType: 'module',
-      },
-    },
+    processor: angular.processInlineTemplates,
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      '@angular-eslint/prefer-standalone': 'off',
+      '@angular-eslint/directive-selector': [
+        'error',
+        {
+          type: 'attribute',
+          prefix: 'app',
+          style: 'camelCase',
+        },
+      ],
+      '@angular-eslint/component-selector': [
+        'error',
+        {
+          type: 'element',
+          prefix: 'app',
+          style: 'kebab-case',
+        },
+      ],
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
-])
+  {
+    files: ['**/*.html'],
+    extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
+    rules: {},
+  },
+]);

@@ -1,0 +1,121 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserExists() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isActive() {
+      return currentUserExists() && currentProfile().active == true;
+    }
+
+    function isAuditor() {
+      return isActive() && auditorRole(currentProfile().role);
+    }
+
+    function isCounter() {
+      return isActive() && counterRole(currentProfile().role);
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function validRole(role) {
+      return role in ['AUDITOR', 'CONTADOR'];
+    }
+
+    function auditorRole(role) {
+      return role in ['AUDITOR', 'auditor', 'admin_auditor', 'administrador', 'admin'];
+    }
+
+    function counterRole(role) {
+      return role in ['CONTADOR', 'contador'];
+    }
+
+    function keepsOrNormalizesOwnRole() {
+      return request.resource.data.role == resource.data.role
+        || (auditorRole(resource.data.role) && request.resource.data.role == 'AUDITOR')
+        || (counterRole(resource.data.role) && request.resource.data.role == 'CONTADOR');
+    }
+
+    function canBootstrapAuditor() {
+      return request.auth.token.email == 'maydelgamerz90@gmail.com';
+    }
+
+    function selfCreatesProfile(uid) {
+      return isSelf(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.active == true
+        && validRole(request.resource.data.role)
+        && (request.resource.data.role == 'CONTADOR' || canBootstrapAuditor());
+    }
+
+    function selfUpdatesOnlySessionFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'displayName',
+        'email',
+        'lastSeenAt',
+        'role',
+        'uid',
+        'updatedAt'
+      ])
+      && keepsOrNormalizesOwnRole()
+      && request.resource.data.active == resource.data.active;
+    }
+
+    function counterInventoryUpdate() {
+      return isCounter()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'updatedAt',
+          'updatedBy',
+          'userCounts',
+          'versions'
+        ])
+        && request.resource.data.status in [
+          'en_proceso',
+          'guardado',
+          'conteo_1_completo',
+          'conteo_2_completo',
+          'pendiente_comparacion',
+          'en_revision',
+          'reabierto'
+        ]
+        && request.resource.data.updatedBy.uid == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow create: if selfCreatesProfile(uid) || isAuditor();
+      allow read: if isSelf(uid) || isAuditor();
+      allow update: if isAuditor() || (isSelf(uid) && selfUpdatesOnlySessionFields());
+      allow delete: if false;
+    }
+
+    match /inventory/{inventoryId} {
+      allow read: if isActive();
+      allow create: if isAuditor();
+      allow update: if isAuditor() || counterInventoryUpdate();
+      allow delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow create: if isActive() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAuditor();
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

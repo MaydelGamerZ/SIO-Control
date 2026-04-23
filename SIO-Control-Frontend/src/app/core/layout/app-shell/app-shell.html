@@ -1,0 +1,47 @@
+<div class="min-vh-100 bg-body-tertiary">
+  <header class="navbar navbar-light bg-white border-bottom shadow-sm sticky-top">
+    <div class="container-fluid">
+      <button class="btn btn-outline-secondary d-lg-none" type="button" (click)="sidebarOpen.set(!sidebarOpen())">
+        <i class="bi bi-list fs-4"></i>
+      </button>
+      <a class="navbar-brand fw-bold text-primary" routerLink="/inicio">SIO Control</a>
+      <div class="d-flex align-items-center gap-2 ms-auto">
+        <span class="badge rounded-pill" [ngClass]="auth.canAudit() ? 'text-bg-success' : 'text-bg-primary'">
+          {{ auth.roleLabel() }}
+        </span>
+        <span class="d-none d-md-inline fw-semibold text-secondary">{{ userLabel() }}</span>
+        <button class="btn btn-outline-danger btn-sm" type="button" (click)="logout()">Cerrar sesion</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container-fluid">
+    <div class="row">
+      <aside class="col-12 col-lg-3 col-xl-2 border-end bg-white p-0 sio-sidebar" [class.sio-sidebar-open]="sidebarOpen()">
+        <div class="p-3 border-bottom">
+          <div class="small text-uppercase fw-semibold text-secondary">Operacion</div>
+          <div class="fw-bold fs-5 mt-1">Inventario diario</div>
+        </div>
+        <nav class="nav flex-column gap-1 p-3">
+          @for (item of mainItems(); track item.to) {
+            <a
+              class="nav-link rounded-3 d-flex align-items-center gap-2 px-3 py-2 text-dark fw-semibold"
+              routerLinkActive="active bg-primary-subtle text-primary-emphasis"
+              [routerLink]="item.to"
+              (click)="sidebarOpen.set(false)"
+            >
+              <i class="bi" [ngClass]="item.icon"></i>
+              <span>{{ item.label }}</span>
+            </a>
+          }
+        </nav>
+      </aside>
+
+      <div class="col-12 col-lg-9 col-xl-10 min-w-0">
+        <main class="container-fluid py-4 py-lg-5">
+          <router-outlet></router-outlet>
+        </main>
+      </div>
+    </div>
+  </div>
+</div>

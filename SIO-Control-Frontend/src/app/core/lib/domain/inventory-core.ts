@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const inventoryStatuses = {
   draft: 'borrador',
   inProgress: 'en_proceso',

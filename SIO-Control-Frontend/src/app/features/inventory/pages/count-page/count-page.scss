@@ -1,0 +1,7 @@
+.category-pill {
+  transition: border-color 0.2s ease;
+}
+
+.category-pill:hover {
+  border-color: var(--bs-primary);
+}

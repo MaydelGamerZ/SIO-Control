@@ -1,0 +1,160 @@
+@if (loading()) {
+  <app-loading-state label="Cargando conteo"></app-loading-state>
+} @else if (!inventory()) {
+  <app-empty-state
+    [description]="auth.canAudit()
+      ? 'Carga un PDF diario para crear el inventario y comenzar la captura.'
+      : 'No hay inventarios disponibles para capturar en este momento.'"
+    [title]="'No hay inventario disponible'"
+  >
+    @if (auth.canAudit()) {
+      <a action class="btn btn-primary" routerLink="/inventario/cargar">Cargar inventario</a>
+    }
+  </app-empty-state>
+} @else {
+  <app-page-header
+    [eyebrow]="'Conteo en proceso'"
+    [title]="'Inventario diario · ' + (inventory()?.fecha || inventory()?.dateKey)"
+    [description]="inventory()?.cedis + ' · Avance ' + (inventory()?.progress || 0) + '% · ' + (inventory()?.countedProducts || 0) + '/' + (inventory()?.totalProducts || 0) + ' productos'"
+  >
+    <div actions>
+      <app-realtime-indicator [status]="realtime.status()"></app-realtime-indicator>
+      <button class="btn btn-outline-secondary" type="button" [disabled]="readOnly" (click)="save(inventoryStatuses.inProgress)">Guardar</button>
+      <button class="btn btn-primary" type="button" [disabled]="readOnly" (click)="save(inventoryStatuses.saved)">Guardar y salir</button>
+      @if (auth.canAudit()) {
+        <a class="btn btn-outline-secondary" [routerLink]="['/inventario', inventory()?.id, 'comparar']">Comparar</a>
+      }
+    </div>
+  </app-page-header>
+
+  <app-error-state [message]="error()"></app-error-state>
+
+  @if (readOnly) {
+    <div class="alert alert-warning border-0 shadow-sm">
+      Inventario {{ inventory()?.status }}: captura en modo solo lectura.
+    </div>
+  }
+
+  <section class="card border-0 shadow-sm">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-lg-4">
+          <input class="form-control" placeholder="Buscar producto o categoria" [ngModel]="search()" (ngModelChange)="search.set($event)" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <select class="form-select" [ngModel]="filterId()" (ngModelChange)="filterId.set($event)">
+            @for (filter of productFilters; track filter.id) {
+              <option [value]="filter.id">{{ filter.label }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <select class="form-select" [ngModel]="activeCategoryId()" (ngModelChange)="activeCategoryId.set($event)">
+            @for (category of categories; track category.id) {
+              <option [value]="category.id">{{ category.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-3 mt-2">
+        @for (category of categories; track category.id) {
+          <div class="col-12 col-md-6 col-xl-4">
+            <button class="category-pill border rounded-4 p-3 text-start w-100 bg-white" [class.border-primary]="category.id === activeCategoryId()" type="button" (click)="activeCategoryId.set(category.id)">
+              <div class="d-flex justify-content-between gap-3 align-items-center">
+                <div class="fw-semibold">{{ category.name }}</div>
+                <span class="badge text-bg-primary">{{ getCategoryProgress(category) }}%</span>
+              </div>
+              <div class="small text-secondary mt-2">{{ category.products.length }} productos</div>
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  </section>
+
+  @if (!visibleRows.length) {
+    <div class="mt-4">
+      <app-empty-state [description]="'Ajusta categoria, busqueda o filtro para mostrar productos.'" [title]="'Sin productos visibles'"></app-empty-state>
+    </div>
+  } @else {
+    <div class="d-grid gap-3 mt-4">
+      @for (row of visibleRows; track row.categoryId + '-' + row.product.id) {
+        <article class="card border-0 shadow-sm">
+          <div class="card-body">
+            <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+              <div>
+                <div class="small text-uppercase fw-semibold text-secondary">{{ row.categoryName }}</div>
+                <h2 class="h5 fw-bold mt-1 mb-0">{{ row.product.name }}</h2>
+              </div>
+              <span
+                class="badge"
+                [ngClass]="getProductStatus(row.product).tone === 'green' ? 'text-bg-success' : getProductStatus(row.product).tone === 'red' ? 'text-bg-danger' : 'text-bg-warning'"
+              >
+                {{ getProductStatus(row.product).label }}
+              </span>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-6 col-md-3"><strong>Stock:</strong> {{ formatNumber(row.product.stock) }}</div>
+              <div class="col-6 col-md-3"><strong>Contado:</strong> {{ formatNumber(row.product.totalCounted) }}</div>
+              <div class="col-6 col-md-3"><strong>Diferencia:</strong> {{ formatNumber(row.product.difference) }}</div>
+              <div class="col-6 col-md-3"><strong>No disp.:</strong> {{ formatNumber(row.product.noDisponible) }}</div>
+            </div>
+
+            <div class="row g-3 mt-1" [class.opacity-50]="readOnly">
+              <div class="col-12 col-md-2">
+                <input class="form-control" type="number" min="0" [disabled]="readOnly" [ngModel]="draftFor(row.product.id).quantity" (ngModelChange)="draftFor(row.product.id).quantity = $event" />
+              </div>
+              <div class="col-12 col-md-3">
+                <select class="form-select" [disabled]="readOnly" [ngModel]="draftFor(row.product.id).observation" (ngModelChange)="draftFor(row.product.id).observation = $event">
+                  @for (observation of observationOptions; track observation) {
+                    <option [value]="observation">{{ observation }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-12 col-md-5">
+                <input class="form-control" [disabled]="readOnly" placeholder="Comentario u observacion" [ngModel]="draftFor(row.product.id).comment" (ngModelChange)="draftFor(row.product.id).comment = $event" />
+              </div>
+              <div class="col-12 col-md-2">
+                <button class="btn btn-primary w-100" type="button" [disabled]="readOnly" (click)="addEntry(row)">Agregar</button>
+              </div>
+            </div>
+
+            <div class="list-group list-group-flush mt-3">
+              @if (!row.product.countEntries.length) {
+                <div class="list-group-item px-0 text-secondary">Sin conteos registrados.</div>
+              }
+              @for (entry of row.product.countEntries; track entry.id) {
+                <div class="list-group-item px-0">
+                  <div class="row g-2 align-items-center">
+                    <div class="col-12 col-md-2">
+                      <input class="form-control form-control-sm" type="number" min="0" [disabled]="readOnly" [ngModel]="entryDraftFor(entry).quantity" (ngModelChange)="entryDraftFor(entry).quantity = $event" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                      <select class="form-select form-select-sm" [disabled]="readOnly" [ngModel]="entryDraftFor(entry).observation" (ngModelChange)="entryDraftFor(entry).observation = $event">
+                        @for (observation of observationOptions; track observation) {
+                          <option [value]="observation">{{ observation }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <input class="form-control form-control-sm" [disabled]="readOnly" [ngModel]="entryDraftFor(entry).comment" (ngModelChange)="entryDraftFor(entry).comment = $event" />
+                    </div>
+                    <div class="col-12 col-md-3 text-md-end">
+                      <div class="d-flex flex-wrap gap-2 justify-content-md-end">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" [disabled]="readOnly" (click)="updateEntry(row, entry)">Guardar</button>
+                        <button class="btn btn-outline-danger btn-sm" type="button" [disabled]="readOnly" (click)="deleteEntry(row, entry.id)">Eliminar</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="small text-secondary mt-2">{{ formatTime(entry.createdAt) }} · {{ entry.userName }}</div>
+                </div>
+              }
+            </div>
+          </div>
+        </article>
+      }
+    </div>
+  }
+}

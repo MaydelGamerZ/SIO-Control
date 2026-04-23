@@ -1,0 +1,13 @@
+.sio-sidebar {
+  min-height: calc(100vh - 57px);
+}
+
+@media (max-width: 991.98px) {
+  .sio-sidebar {
+    display: none;
+  }
+
+  .sio-sidebar.sio-sidebar-open {
+    display: block;
+  }
+}

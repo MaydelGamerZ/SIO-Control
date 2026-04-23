@@ -1,0 +1,39 @@
+@use 'bootstrap/scss/bootstrap';
+@import 'bootstrap-icons/font/bootstrap-icons.css';
+
+:root {
+  --bs-body-bg: #f4f7fb;
+  --bs-body-color: #18212f;
+  --sio-sidebar-width: 17rem;
+}
+
+body {
+  background: linear-gradient(180deg, #f7f9fc 0%, #edf2f8 100%);
+  color: var(--bs-body-color);
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+
+.card,
+.alert,
+.btn,
+.form-control,
+.form-select,
+.badge,
+.accordion-item,
+.table,
+.list-group-item {
+  border-radius: 1rem;
+}
+
+.table > :not(caption) > * > * {
+  vertical-align: middle;
+}
+
+.min-w-0 {
+  min-width: 0;
+}

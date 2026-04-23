@@ -1,0 +1,160 @@
+@if (loading()) {
+  <app-loading-state label="Cargando comparacion"></app-loading-state>
+} @else if (!inventory()) {
+  <app-empty-state [description]="'No hay inventario disponible para comparar.'" [title]="'Sin inventario'"></app-empty-state>
+} @else if ((inventory()?.userCounts || []).length < 2) {
+  <app-page-header
+    [eyebrow]="'Validacion'"
+    [title]="'Comparar conteos'"
+    [description]="'Se necesitan dos usuarios con conteo independiente para comparar resultados.'"
+  ></app-page-header>
+  <app-empty-state
+    [description]="'Cuando otro usuario guarde su conteo podras compararlo aqui.'"
+    [title]="'Comparacion pendiente'"
+  >
+    <a action class="btn btn-primary" [routerLink]="['/inventario', inventory()?.id, 'editar']">Ir al conteo</a>
+  </app-empty-state>
+} @else {
+  <app-page-header
+    [eyebrow]="'Comparacion'"
+    [title]="'Comparar conteos · ' + formatDisplayDate(inventory()?.dateKey)"
+    [description]="inventory()?.cedis + ' · Estado ' + inventory()?.status"
+  >
+    <div actions>
+      <app-realtime-indicator [status]="realtime.status()"></app-realtime-indicator>
+      <a class="btn btn-outline-secondary" [routerLink]="['/inventario', inventory()?.id, 'editar']">Volver a conteo</a>
+      <button class="btn btn-primary" type="button" [disabled]="saving() || readOnly" (click)="createFinalCount()">Generar conteo final</button>
+    </div>
+  </app-page-header>
+
+  <app-error-state [message]="error()"></app-error-state>
+
+  @if (readOnly) {
+    <div class="alert alert-warning border-0 shadow-sm">
+      El inventario esta en modo solo lectura. Solo puedes revisar diferencias y validaciones existentes.
+    </div>
+  }
+
+  <div class="row g-4">
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-check2-circle'" [label]="'Coinciden'" [tone]="'success'" [value]="formatNumber(matchingRows)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-arrow-left-right'" [label]="'Diferentes'" [tone]="'warning'" [value]="formatNumber(differentRows)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-hourglass-split'" [label]="'Pendientes'" [tone]="'secondary'" [value]="formatNumber(pendingRows)"></app-stat-card>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <app-stat-card [icon]="'bi-exclamation-triangle'" [label]="'Criticos'" [tone]="'warning'" [value]="formatNumber(criticalRows)"></app-stat-card>
+    </div>
+  </div>
+
+  <section class="card border-0 shadow-sm mt-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-6 col-xl-2">
+          <select class="form-select" [ngModel]="countAId()" (ngModelChange)="countAId.set($event)">
+            @for (count of inventory()?.userCounts; track count.id) {
+              <option [value]="count.id">{{ count.userName }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-2">
+          <select class="form-select" [ngModel]="countBId()" (ngModelChange)="countBId.set($event)">
+            @for (count of inventory()?.userCounts; track count.id) {
+              <option [value]="count.id">{{ count.userName }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-2">
+          <select class="form-select" [ngModel]="categoryFilterId()" (ngModelChange)="categoryFilterId.set($event)">
+            <option value="all">Todas las categorias</option>
+            @for (category of categories; track category.id) {
+              <option [value]="category.id">{{ category.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-12 col-md-6 col-xl-2">
+          <select class="form-select" [ngModel]="filterId()" (ngModelChange)="filterId.set($event)">
+            @for (filter of compareService.filters; track filter.id) {
+              <option [value]="filter.id">{{ filter.label }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-12 col-xl-3">
+          <input class="form-control" placeholder="Buscar producto o categoria" [ngModel]="search()" (ngModelChange)="search.set($event)" />
+        </div>
+        <div class="col-12 col-xl-1">
+          <div class="form-check form-switch pt-2">
+            <input class="form-check-input" id="smartMode" type="checkbox" [ngModel]="smartMode()" (ngModelChange)="smartMode.set($event)" />
+            <label class="form-check-label small" for="smartMode">Smart</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  @if (!filteredRows.length) {
+    <div class="mt-4">
+      <app-empty-state [description]="'Ajusta filtros o espera mas capturas para mostrar diferencias.'" [title]="'Sin filas visibles'"></app-empty-state>
+    </div>
+  } @else {
+    <section class="card border-0 shadow-sm mt-4">
+      <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>{{ countA?.userName || 'Conteo A' }}</th>
+              <th>{{ countB?.userName || 'Conteo B' }}</th>
+              <th>Diferencia</th>
+              <th>Estado</th>
+              <th class="text-end">Validacion</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of filteredRows; track row.productKey) {
+              <tr>
+                <td>
+                  <div class="fw-semibold">{{ row.product.name }}</div>
+                  <div class="small text-secondary">{{ row.categoryName }}</div>
+                </td>
+                <td style="min-width: 11rem;">
+                  <div class="input-group input-group-sm">
+                    <input class="form-control" type="number" min="0" [disabled]="readOnly" [ngModel]="adjustmentFor(row).a" (ngModelChange)="adjustmentFor(row).a = $event" />
+                    <button class="btn btn-outline-secondary" type="button" [disabled]="readOnly || saving()" (click)="applyAdjustment(row, 'a')">Aplicar</button>
+                  </div>
+                  <div class="small text-secondary mt-2">Actual: {{ formatNumber(row.totalA) }}</div>
+                </td>
+                <td style="min-width: 11rem;">
+                  <div class="input-group input-group-sm">
+                    <input class="form-control" type="number" min="0" [disabled]="readOnly" [ngModel]="adjustmentFor(row).b" (ngModelChange)="adjustmentFor(row).b = $event" />
+                    <button class="btn btn-outline-secondary" type="button" [disabled]="readOnly || saving()" (click)="applyAdjustment(row, 'b')">Aplicar</button>
+                  </div>
+                  <div class="small text-secondary mt-2">Actual: {{ formatNumber(row.totalB) }}</div>
+                </td>
+                <td>
+                  <div class="fw-semibold">{{ formatNumber(row.difference) }}</div>
+                  <div class="small text-secondary">
+                    @if (row.missingInfo) { Pendiente } @else if (row.critical) { Critico } @else { Revisado }
+                  </div>
+                </td>
+                <td>
+                  <span class="badge" [ngClass]="row.difference === 0 ? 'text-bg-success' : row.critical ? 'text-bg-danger' : 'text-bg-warning'">
+                    {{ row.difference === 0 ? 'Coincide' : row.critical ? 'Critico' : 'Diferente' }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <button class="btn btn-sm" [ngClass]="row.verified ? 'btn-success' : 'btn-outline-secondary'" type="button" [disabled]="readOnly || saving()" (click)="toggleValidation(row)">
+                    {{ row.verified ? 'Validado' : 'Validar' }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+}
