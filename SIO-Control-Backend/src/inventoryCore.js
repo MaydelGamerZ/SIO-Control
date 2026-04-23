@@ -1,28 +1,13 @@
 export const inventoryStatuses = {
   draft: 'borrador',
   inProgress: 'en_proceso',
-  inReview: 'en_revision',
   count1Complete: 'conteo_1_completo',
   count2Complete: 'conteo_2_completo',
   pendingComparison: 'pendiente_comparacion',
-  locked: 'bloqueado',
   validated: 'validado',
   saved: 'guardado',
   closed: 'cerrado',
   reopened: 'reabierto',
-}
-
-export const readOnlyInventoryStatuses = [
-  inventoryStatuses.locked,
-  inventoryStatuses.closed,
-]
-
-export function isInventoryReadOnly(status) {
-  return readOnlyInventoryStatuses.includes(status)
-}
-
-export function canEditInventory(status) {
-  return !isInventoryReadOnly(status)
 }
 
 export const observationOptions = ['Buen estado', 'Danado', 'Mojado', 'Caducado', 'Otro']
@@ -212,21 +197,6 @@ export function getProductStatus(product) {
   if (product.difference === 0) return { label: 'Coincide', tone: 'green' }
   if (product.difference > 0) return { label: 'Sobrante', tone: 'amber' }
   return { label: 'Faltante', tone: 'red' }
-}
-
-export function getProductRisk(product) {
-  const stock = Math.abs(Number(product?.stock || 0))
-  const difference = Math.abs(Number(product?.difference || 0))
-  const entries = product?.countEntries || []
-  const hasCriticalObservation = entries.some((entry) =>
-    ['Danado', 'Mojado', 'Caducado'].includes(entry.observation || entry.condition),
-  )
-  const differenceRatio = stock === 0 ? (difference > 0 ? 1 : 0) : difference / stock
-  const critical = difference >= 10 || differenceRatio >= 0.2 || hasCriticalObservation
-
-  if (critical) return { critical: true, label: 'Critico', score: Math.max(differenceRatio, hasCriticalObservation ? 0.5 : 0), tone: 'red' }
-  if (difference > 0) return { critical: false, label: 'Revisar', score: differenceRatio, tone: 'amber' }
-  return { critical: false, label: 'Normal', score: 0, tone: 'green' }
 }
 
 export function productMatchesFilter(product, filterId) {
