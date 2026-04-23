@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
+  "framework": "angular",
   "installCommand": "npm --prefix SIO-Control-Frontend install",
   "buildCommand": "npm --prefix SIO-Control-Frontend run build",
-  "outputDirectory": "SIO-Control-Frontend/dist",
+  "outputDirectory": "SIO-Control-Frontend/dist/sio-control-frontend/browser",
   "rewrites": [
     {
       "source": "/(.*)",
