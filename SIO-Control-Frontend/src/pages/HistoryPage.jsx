@@ -137,7 +137,7 @@ export default function HistoryPage() {
                 <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="light"><Edit3 size={16} />Editar</Button>
                 {canAudit && <Button className="w-full" onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="light"><GitCompare size={16} />Comparar</Button>}
                 <Button className="w-full" onClick={() => reopenInventory(inventory.id)} tone="light"><ArchiveRestore size={16} />Reabrir</Button>
-                <Button className="w-full" onClick={() => exportInventoryToPdf(inventory)} tone="light"><Download size={16} />Exportar PDF</Button>
+                <Button className="w-full" onClick={() => exportInventoryToPdf(inventory, user, profile)} tone="light"><Download size={16} />Exportar PDF</Button>
               </div>
             </article>
           ))}

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
+  Activity,
   BarChart3,
   ChevronDown,
   ChevronRight,
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
-import { canAuditUser } from '../services/userService'
+import { canAuditUser, updateUserPresence } from '../services/userService'
 
 const inventoryItems = [
   { to: '/inventario/resumen', label: 'Resumen del dia', icon: BarChart3 },
@@ -36,6 +37,10 @@ const mainItems = [
 
 const adminItems = [
   { to: '/administracion/usuarios', label: 'Usuarios', icon: Users },
+]
+
+const auditItems = [
+  { to: '/bitacora', label: 'Bitacora', icon: Activity },
 ]
 
 function SidebarTooltip({ children, visible }) {
@@ -88,6 +93,11 @@ export default function AppShell() {
   const userLabel = user?.displayName || user?.email || 'Usuario'
   const canAudit = canAuditUser(user, profile)
   const inventoryDetailActive = /^\/inventario\/(?!resumen$|cargar$|conteo$|comparar$|historial$)[^/]+(?:\/editar|\/comparar)?$/.test(location.pathname)
+
+  useEffect(() => {
+    if (!user?.uid) return
+    updateUserPresence(user, { currentView: location.pathname }).catch(() => {})
+  }, [location.pathname, user])
 
   async function handleLogout() {
     await logout()
@@ -196,6 +206,11 @@ export default function AppShell() {
 
               {canAudit && (
                 <>
+                  <div className={`mt-4 space-y-1 ${sidebarCollapsed ? '' : 'pl-0'}`}>
+                    {auditItems.map((item) => (
+                      <NavItem collapsed={sidebarCollapsed} key={item.to} onSelect={closeDrawer} {...item} />
+                    ))}
+                  </div>
                   <button
                     className={`group relative mt-4 flex min-h-12 w-full items-center rounded-xl bg-white/5 text-sm font-black text-white ring-1 ring-white/10 transition hover:bg-white/10 ${
                       sidebarCollapsed ? 'justify-center px-0' : 'justify-between px-3'

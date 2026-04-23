@@ -13,6 +13,8 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { safeCreateAuditLog } from './auditLogService'
+import { canAuditUser, getUserProfile, updateUserPresence } from './userService'
 import {
   createId,
   formatDateKey,
@@ -23,6 +25,28 @@ import {
 } from '../utils/inventory'
 
 const inventoryCollection = collection(db, 'inventory')
+
+async function getActorProfile(user) {
+  if (!user?.uid) return null
+  return getUserProfile(user.uid).catch(() => null)
+}
+
+async function assertAuditAccess(user, message = 'Solo un auditor autorizado puede realizar esta accion.') {
+  const profile = await getActorProfile(user)
+  if (!canAuditUser(user, profile)) throw new Error(message)
+  return profile
+}
+
+function trackInventoryPresence(user, view, inventory = null, category = null) {
+  if (!user?.uid) return
+  updateUserPresence(user, {
+    currentCategoryId: category?.id || '',
+    currentCategoryName: category?.name || '',
+    currentInventoryId: inventory?.id || '',
+    currentView: view,
+    lastInventoryActivityAt: serverTimestamp(),
+  }).catch(() => {})
+}
 
 function makeUserSnapshot(user) {
   return {
@@ -200,8 +224,30 @@ export async function createInventoryFromParsed(parsedInventory, user) {
     createdBy: userSnapshot,
     updatedAt: serverTimestamp(),
     updatedBy: userSnapshot,
+    exportCount: 0,
+    lastExportAt: null,
+    lastExportBy: null,
     userCounts: [],
     verifiedProducts: {},
+  })
+
+  trackInventoryPresence(user, 'inventario_carga')
+  await safeCreateAuditLog({
+    actionType: 'inventory_created',
+    details: {
+      categorias: preparedInventory.totalCategories,
+      cedis: preparedInventory.cedis,
+      fecha: preparedInventory.dateKey,
+      pdf: parsedInventory.sourcePdfName || '',
+      productos: preparedInventory.totalProducts,
+      semana: preparedInventory.semana || '',
+    },
+    inventory: {
+      ...preparedInventory,
+      id: docRef.id,
+    },
+    summary: `${userSnapshot.name} creo el inventario ${preparedInventory.cedis} del ${preparedInventory.dateKey}.`,
+    user,
   })
 
   return docRef.id
@@ -425,6 +471,22 @@ export async function addCountEntry(inventoryId, categoryId, productId, entry, u
     updatedBy: userSnapshot,
     userCounts,
   })
+  const category = categories.find((item) => item.id === categoryId)
+  const product = category?.products.find((item) => item.id === productId)
+  trackInventoryPresence(user, 'inventario_conteo', { ...data, id: inventoryId }, category)
+  await safeCreateAuditLog({
+    actionType: 'count_entry_added',
+    category,
+    details: {
+      observacion: countEntry.observation,
+      quantity: countEntry.quantity,
+      totalProducto: product?.totalCounted || countEntry.quantity,
+    },
+    inventory: { ...data, id: inventoryId },
+    product,
+    summary: `${userSnapshot.name} agrego ${countEntry.quantity} a ${product?.name || 'producto'}.`,
+    user,
+  })
   return countEntry.id
 }
 
@@ -458,6 +520,22 @@ export async function updateCountEntry(inventoryId, categoryId, productId, entry
     updatedBy: makeUserSnapshot(user),
     userCounts,
   })
+  const category = categories.find((item) => item.id === categoryId)
+  const product = category?.products.find((item) => item.id === productId)
+  trackInventoryPresence(user, 'inventario_conteo', { ...data, id: inventoryId }, category)
+  await safeCreateAuditLog({
+    actionType: 'count_entry_updated',
+    category,
+    details: {
+      entryId,
+      observacion: entryPatch.observation || entryPatch.condition || '',
+      quantity: Number(entryPatch.quantity ?? 0),
+    },
+    inventory: { ...data, id: inventoryId },
+    product,
+    summary: `${getUserName(user)} edito un movimiento en ${product?.name || 'producto'}.`,
+    user,
+  })
 }
 
 export async function deleteCountEntry(inventoryId, categoryId, productId, entryId, user) {
@@ -479,9 +557,29 @@ export async function deleteCountEntry(inventoryId, categoryId, productId, entry
     updatedBy: makeUserSnapshot(user),
     userCounts,
   })
+  const category = categories.find((item) => item.id === categoryId)
+  const product = category?.products.find((item) => item.id === productId)
+  trackInventoryPresence(user, 'inventario_conteo', { ...data, id: inventoryId }, category)
+  await safeCreateAuditLog({
+    actionType: 'count_entry_deleted',
+    category,
+    details: {
+      entryId,
+    },
+    inventory: { ...data, id: inventoryId },
+    product,
+    summary: `${getUserName(user)} elimino un movimiento en ${product?.name || 'producto'}.`,
+    user,
+  })
 }
 
 export async function updateInventoryStatus(inventoryId, status, user) {
+  const currentData = await getRawInventoryDocument(inventoryId)
+  let actorProfile = null
+  if ([inventoryStatuses.reopened, inventoryStatuses.validated, inventoryStatuses.closed].includes(status)) {
+    actorProfile = await assertAuditAccess(user)
+  }
+
   if (status === inventoryStatuses.saved || status === inventoryStatuses.inProgress) {
     const { data, userCounts, userCount, userIndex } = await getInventoryDataWithUserCount(inventoryId, user)
     const now = new Date().toISOString()
@@ -491,12 +589,25 @@ export async function updateInventoryStatus(inventoryId, status, user) {
       status,
       updatedAt: now,
     })
+    const nextStatus = getInventoryStatusFromCounts(userCounts, data.status)
 
     await updateDoc(doc(db, 'inventory', inventoryId), {
-      status: getInventoryStatusFromCounts(userCounts, data.status),
+      status: nextStatus,
       updatedAt: serverTimestamp(),
       updatedBy: makeUserSnapshot(user),
       userCounts,
+    })
+    trackInventoryPresence(user, 'inventario_conteo', { ...data, id: inventoryId })
+    await safeCreateAuditLog({
+      actionType: 'inventory_status_changed',
+      details: {
+        estadoAnterior: currentData.status || '',
+        estadoNuevo: nextStatus,
+      },
+      inventory: { ...data, id: inventoryId, status: nextStatus },
+      profile: actorProfile,
+      summary: `${getUserName(user)} cambio el estado del inventario a ${nextStatus}.`,
+      user,
     })
     return
   }
@@ -505,6 +616,18 @@ export async function updateInventoryStatus(inventoryId, status, user) {
     status,
     updatedAt: serverTimestamp(),
     updatedBy: makeUserSnapshot(user),
+  })
+  trackInventoryPresence(user, 'inventario_gestion', { ...currentData, id: inventoryId })
+  await safeCreateAuditLog({
+    actionType: status === inventoryStatuses.reopened ? 'inventory_reopened' : 'inventory_status_changed',
+    details: {
+      estadoAnterior: currentData.status || '',
+      estadoNuevo: status,
+    },
+    inventory: { ...currentData, id: inventoryId, status },
+    profile: actorProfile,
+    summary: `${getUserName(user)} actualizo el estado del inventario a ${status}.`,
+    user,
   })
 }
 
@@ -545,6 +668,23 @@ export async function setUserProductTotal(inventoryId, userCountId, categoryId, 
     updatedBy: userSnapshot,
     userCounts,
   })
+  const category = categories.find((item) => item.id === categoryId)
+  const product = category?.products.find((item) => item.id === productId)
+  trackInventoryPresence(user, 'inventario_comparacion', { ...data, id: inventoryId }, category)
+  await safeCreateAuditLog({
+    actionType: 'count_entry_updated',
+    category,
+    details: {
+      ajusteDirecto: true,
+      observacion: observation,
+      quantity: Number(quantity || 0),
+      userCountId,
+    },
+    inventory: { ...data, id: inventoryId },
+    product,
+    summary: `${getUserName(user)} ajusto directamente ${product?.name || 'producto'} durante comparacion.`,
+    user,
+  })
 }
 
 async function updateUserCountProduct(inventoryId, userCountId, categoryId, productId, updater, user) {
@@ -567,6 +707,11 @@ async function updateUserCountProduct(inventoryId, userCountId, categoryId, prod
     updatedBy: makeUserSnapshot(user),
     userCounts,
   })
+  return {
+    category: categories.find((item) => item.id === categoryId),
+    data,
+    userCount: userCounts[userIndex],
+  }
 }
 
 export async function addUserCountEntry(inventoryId, userCountId, categoryId, productId, entry, user) {
@@ -585,7 +730,7 @@ export async function addUserCountEntry(inventoryId, userCountId, categoryId, pr
     updatedBy: userSnapshot,
   }
 
-  await updateUserCountProduct(
+  const context = await updateUserCountProduct(
     inventoryId,
     userCountId,
     categoryId,
@@ -596,12 +741,28 @@ export async function addUserCountEntry(inventoryId, userCountId, categoryId, pr
     }),
     user,
   )
+  const product = context.category?.products.find((item) => item.id === productId)
+  trackInventoryPresence(user, 'inventario_comparacion', { ...context.data, id: inventoryId }, context.category)
+  await safeCreateAuditLog({
+    actionType: 'count_entry_added',
+    category: context.category,
+    details: {
+      comparacion: true,
+      observacion: countEntry.observation,
+      quantity: countEntry.quantity,
+      userCountId,
+    },
+    inventory: { ...context.data, id: inventoryId },
+    product,
+    summary: `${getUserName(user)} agrego un movimiento en comparacion para ${product?.name || 'producto'}.`,
+    user,
+  })
   return countEntry.id
 }
 
 export async function updateUserCountEntry(inventoryId, userCountId, categoryId, productId, entryId, entryPatch, user) {
   const userSnapshot = makeUserSnapshot(user)
-  await updateUserCountProduct(
+  const context = await updateUserCountProduct(
     inventoryId,
     userCountId,
     categoryId,
@@ -624,10 +785,27 @@ export async function updateUserCountEntry(inventoryId, userCountId, categoryId,
     }),
     user,
   )
+  const product = context.category?.products.find((item) => item.id === productId)
+  trackInventoryPresence(user, 'inventario_comparacion', { ...context.data, id: inventoryId }, context.category)
+  await safeCreateAuditLog({
+    actionType: 'count_entry_updated',
+    category: context.category,
+    details: {
+      comparacion: true,
+      entryId,
+      observacion: entryPatch.observation || entryPatch.condition || '',
+      quantity: Number(entryPatch.quantity ?? 0),
+      userCountId,
+    },
+    inventory: { ...context.data, id: inventoryId },
+    product,
+    summary: `${getUserName(user)} edito un movimiento en comparacion para ${product?.name || 'producto'}.`,
+    user,
+  })
 }
 
 export async function deleteUserCountEntry(inventoryId, userCountId, categoryId, productId, entryId, user) {
-  await updateUserCountProduct(
+  const context = await updateUserCountProduct(
     inventoryId,
     userCountId,
     categoryId,
@@ -638,6 +816,21 @@ export async function deleteUserCountEntry(inventoryId, userCountId, categoryId,
     }),
     user,
   )
+  const product = context.category?.products.find((item) => item.id === productId)
+  trackInventoryPresence(user, 'inventario_comparacion', { ...context.data, id: inventoryId }, context.category)
+  await safeCreateAuditLog({
+    actionType: 'count_entry_deleted',
+    category: context.category,
+    details: {
+      comparacion: true,
+      entryId,
+      userCountId,
+    },
+    inventory: { ...context.data, id: inventoryId },
+    product,
+    summary: `${getUserName(user)} elimino un movimiento en comparacion para ${product?.name || 'producto'}.`,
+    user,
+  })
 }
 
 export async function verifyComparisonProduct(inventoryId, productKey, user) {
@@ -645,7 +838,12 @@ export async function verifyComparisonProduct(inventoryId, productKey, user) {
 }
 
 export async function setComparisonProductVerification(inventoryId, productKey, verified, user) {
+  const actorProfile = await assertAuditAccess(user, 'Solo un auditor puede validar diferencias.')
   const data = await getRawInventoryDocument(inventoryId)
+  const normalized = normalizeInventory(data)
+  const [categoryId, productId] = String(productKey || '').split(':')
+  const category = normalized.categories.find((item) => item.id === categoryId)
+  const product = category?.products.find((item) => item.id === productId)
   await updateDoc(doc(db, 'inventory', inventoryId), {
     updatedAt: serverTimestamp(),
     updatedBy: makeUserSnapshot(user),
@@ -654,9 +852,23 @@ export async function setComparisonProductVerification(inventoryId, productKey, 
       [productKey]: verified,
     },
   })
+  trackInventoryPresence(user, 'inventario_comparacion', { ...data, id: inventoryId }, category)
+  await safeCreateAuditLog({
+    actionType: verified ? 'comparison_product_validated' : 'comparison_product_unvalidated',
+    category,
+    details: {
+      validated: verified,
+    },
+    inventory: { ...data, id: inventoryId },
+    product,
+    profile: actorProfile,
+    summary: `${getUserName(user)} ${verified ? 'valido' : 'marco pendiente'} ${product?.name || 'producto'} en comparacion.`,
+    user,
+  })
 }
 
 export async function generateFinalCount(inventoryId, user, countAId = '', countBId = '') {
+  const actorProfile = await assertAuditAccess(user, 'Solo un auditor puede generar el conteo final.')
   const data = await getRawInventoryDocument(inventoryId)
   const normalized = normalizeInventory(data)
   const firstCount = normalized.userCounts.find((count) => count.id === countAId) || normalized.userCounts[0]
@@ -725,6 +937,20 @@ export async function generateFinalCount(inventoryId, user, countAId = '', count
     status: inventoryStatuses.validated,
     updatedAt: serverTimestamp(),
     updatedBy: userSnapshot,
+  })
+  trackInventoryPresence(user, 'inventario_comparacion', { ...data, id: inventoryId })
+  await safeCreateAuditLog({
+    actionType: 'final_count_generated',
+    details: {
+      countAId: firstCount.id,
+      countBId: secondCount.id,
+      totalCounted: finalCount.totalCounted,
+      totalProducts: finalCount.totalProducts,
+    },
+    inventory: { ...data, id: inventoryId, status: inventoryStatuses.validated },
+    profile: actorProfile,
+    summary: `${getUserName(user)} genero el conteo final validado del inventario.`,
+    user,
   })
 }
 

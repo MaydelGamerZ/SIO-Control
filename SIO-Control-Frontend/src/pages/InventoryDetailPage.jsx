@@ -67,7 +67,7 @@ export default function InventoryDetailPage() {
             <Button onClick={() => navigate('/inventario/historial')} tone="light"><RotateCcw className="mr-2 inline" size={18} />Volver al historial</Button>
             <Button onClick={() => navigate(`/inventario/${inventory.id}/editar`)} tone="dark">Editar conteo</Button>
             {canAudit && <Button onClick={() => navigate(`/inventario/${inventory.id}/comparar`)} tone="blue"><GitCompare className="mr-2 inline" size={18} />Comparar</Button>}
-            <Button onClick={() => exportInventoryToPdf(inventory)} tone="light"><Download className="mr-2 inline" size={18} />Exportar PDF</Button>
+            <Button onClick={() => exportInventoryToPdf(inventory, user, profile)} tone="light"><Download className="mr-2 inline" size={18} />Exportar PDF</Button>
             <RealtimeIndicator status={syncStatus} />
           </div>
         }

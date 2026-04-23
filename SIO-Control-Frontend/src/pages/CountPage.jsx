@@ -12,7 +12,7 @@ import {
   updateInventoryStatus,
 } from '../services/inventoryService'
 import { filterProductRows, formatNumber, formatTime, getCategoryProgress, getProductStatus, inventoryStatuses, observationOptions, productFilters } from '../utils/inventory'
-import { canAuditUser } from '../services/userService'
+import { canAuditUser, updateUserPresence } from '../services/userService'
 
 export default function CountPage() {
   const [activeCategoryId, setActiveCategoryId] = useState('')
@@ -108,6 +108,17 @@ export default function CountPage() {
       search,
     })
   }, [activeCategory, categories, filterId, inventory, search])
+
+  useEffect(() => {
+    if (!user?.uid || !inventory?.id) return
+    updateUserPresence(user, {
+      currentCategoryId: activeCategory?.id || '',
+      currentCategoryName: activeCategory?.name || '',
+      currentInventoryId: inventory.id,
+      currentView: '/inventario/conteo',
+      lastInventoryActivityAt: new Date().toISOString(),
+    }).catch(() => {})
+  }, [activeCategory?.id, activeCategory?.name, inventory?.id, user])
 
   async function handleAdd(categoryId, productId, values) {
     if (!inventory?.id) return

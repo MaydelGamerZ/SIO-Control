@@ -70,7 +70,7 @@ export default function AdminUsersPage() {
 
   async function changeRole(uid, role) {
     try {
-      await updateUserRole(uid, role)
+      await updateUserRole(uid, role, user, profile)
       await refreshUsers()
     } catch (roleError) {
       setError(roleError.message)
@@ -79,7 +79,7 @@ export default function AdminUsersPage() {
 
   async function toggleActive(uid, active) {
     try {
-      await updateUserActive(uid, active)
+      await updateUserActive(uid, active, user, profile)
       await refreshUsers()
     } catch (activeError) {
       setError(activeError.message)

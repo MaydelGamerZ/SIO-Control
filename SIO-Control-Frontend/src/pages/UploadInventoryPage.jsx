@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { FileText, Upload } from 'lucide-react'
 import { Button, EmptyState, ErrorState, LoadingState, PageTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
+import { safeCreateAuditLog } from '../services/auditLogService'
 import { createInventoryFromParsed } from '../services/inventoryService'
 import { parseInventoryPdf } from '../services/pdfInventoryParser'
 import { formatDisplayDate, formatNumber } from '../utils/inventory'
@@ -23,6 +24,19 @@ export default function UploadInventoryPage() {
     try {
       const parsed = await parseInventoryPdf(file)
       setParsedInventory(parsed)
+      await safeCreateAuditLog({
+        actionType: 'inventory_pdf_uploaded',
+        details: {
+          categorias: parsed.categories.length,
+          cedis: parsed.cedis,
+          fecha: parsed.dateKey,
+          fileName: file.name,
+          productos: parsed.categories.reduce((total, category) => total + category.products.length, 0),
+          semana: parsed.semana || '',
+        },
+        summary: `${user?.displayName || user?.email || 'Usuario'} cargo el PDF ${file.name}.`,
+        user,
+      })
     } catch (parseError) {
       setParsedInventory(null)
       setError(parseError.message)

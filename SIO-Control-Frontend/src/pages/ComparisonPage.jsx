@@ -11,6 +11,7 @@ import {
   subscribeCurrentInventory,
   updateUserCountEntry,
 } from '../services/inventoryService'
+import { updateUserPresence } from '../services/userService'
 import { flattenProducts, formatDisplayDate, formatNumber, formatTime, observationOptions } from '../utils/inventory'
 
 const comparisonFilters = [
@@ -165,6 +166,19 @@ export default function ComparisonPage() {
       return true
     })
   }, [categoryFilterId, comparisonRows, filterId, normalizedSearch])
+
+  useEffect(() => {
+    if (!user?.uid || !inventory?.id) return
+    updateUserPresence(user, {
+      currentCategoryId: categoryFilterId === 'all' ? '' : categoryFilterId,
+      currentCategoryName: categoryFilterId === 'all'
+        ? 'Todas las categorias'
+        : comparisonCategories.find((category) => category.id === categoryFilterId)?.name || '',
+      currentInventoryId: inventory.id,
+      currentView: '/inventario/comparar',
+      lastInventoryActivityAt: new Date().toISOString(),
+    }).catch(() => {})
+  }, [categoryFilterId, comparisonCategories, inventory?.id, user])
 
   function clearComparisonTools() {
     setCategoryFilterId('all')

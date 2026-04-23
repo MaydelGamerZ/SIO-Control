@@ -1,3 +1,6 @@
+import { doc as firestoreDoc, increment, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { db } from '../firebase'
+import { safeCreateAuditLog } from './auditLogService'
 import { formatDisplayDate, formatNumber } from '../utils/inventory'
 
 const page = {
@@ -247,7 +250,7 @@ function drawTotalsRow(doc, y, label, totals, strong = false) {
   return y + rowHeight
 }
 
-export async function exportInventoryToPdf(inventory) {
+export async function exportInventoryToPdf(inventory, user = null, profile = null) {
   if (!inventory) return
   const { jsPDF } = await import('jspdf')
 
@@ -281,4 +284,29 @@ export async function exportInventoryToPdf(inventory) {
 
   if (doc.putTotalPages) doc.putTotalPages(totalPagesToken)
   doc.save(makeFileName(inventory))
+
+  if (inventory.id && user?.uid) {
+    await updateDoc(firestoreDoc(db, 'inventory', inventory.id), {
+      exportCount: increment(1),
+      lastExportAt: serverTimestamp(),
+      lastExportBy: {
+        email: user.email || '',
+        name: user.displayName || user.email || 'Usuario',
+        uid: user.uid,
+      },
+      updatedAt: serverTimestamp(),
+    }).catch(() => {})
+
+    await safeCreateAuditLog({
+      actionType: 'inventory_pdf_exported',
+      details: {
+        exportCount: Number(inventory.exportCount || 0) + 1,
+        exportType: inventory.finalCount ? 'final' : inventory.activeUserCount ? 'usuario_activo' : 'general',
+      },
+      inventory,
+      profile,
+      summary: `${user.displayName || user.email} exporto el PDF de ${inventory.cedis || 'inventario'}.`,
+      user,
+    })
+  }
 }

@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import RoleRoute from './components/RoleRoute'
 import { AuthProvider } from './contexts/AuthContext'
 import AdminUsersPage from './pages/AdminUsersPage'
+import AuditLogPage from './pages/AuditLogPage'
 import CountPage from './pages/CountPage'
 import ComparisonPage from './pages/ComparisonPage'
 import HomePage from './pages/HomePage'
@@ -35,6 +36,8 @@ const router = createBrowserRouter([
               { path: '/inventario/comparar', element: <ComparisonPage /> },
               { path: '/inventario/:id/comparar', element: <ComparisonPage /> },
               { path: '/administracion/usuarios', element: <AdminUsersPage /> },
+              { path: '/bitacora', element: <AuditLogPage /> },
+              { path: '/inventario/bitacora', element: <AuditLogPage /> },
             ],
           },
         ],
